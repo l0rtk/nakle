@@ -4,8 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nakle is an API wrapper for local Claude Code that exposes it as a standard LLM API interface.
+Nakle is a REST API that wraps Claude Code headless mode as a pure LLM API (no codebase context).
 
-## Project Structure
+## Commands
 
-- `src/` - Python source code
+```bash
+# Install
+pip install -e .
+
+# Run server
+uvicorn src.main:app --reload
+
+# Test endpoint
+curl -X POST http://localhost:8000/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "sonnet", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+## Architecture
+
+- `src/main.py` - FastAPI application with `/chat/completions` and `/health` endpoints
+- `src/claude_runner.py` - Subprocess wrapper that runs `claude -p` from `/tmp` with no context
+- `src/models.py` - Pydantic models for request/response

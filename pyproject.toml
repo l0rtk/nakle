@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nakle"
+version = "0.1.0"
+description = "API wrapper for Claude Code as a pure LLM"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
