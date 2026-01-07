@@ -71,7 +71,7 @@ After setting up the secrets:
 4. Watch the deployment workflow run
 5. Verify deployment:
    ```bash
-   curl -X POST http://<YOUR_VM_IP>:8000/chat/completions \
+   curl -X POST http://<YOUR_VM_IP>/chat/completions \
      -H "Content-Type: application/json" \
      -d '{"model": "haiku", "messages": [{"role": "user", "content": "Hello"}]}'
    ```

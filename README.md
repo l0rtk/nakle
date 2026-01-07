@@ -33,8 +33,13 @@ claude login
 # Run with docker-compose
 sudo docker-compose up -d
 
-# Test the API
+# Test the API (local)
 curl -X POST http://localhost:8000/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "haiku", "messages": [{"role": "user", "content": "Hello"}]}'
+
+# Test the API (Azure VM - uses port 80)
+curl -X POST http://<YOUR_VM_IP>/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "haiku", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
@@ -131,8 +136,8 @@ claude login
 # Deploy
 sudo docker-compose up -d
 
-# Verify it's working
-curl -X POST http://localhost:8000/chat/completions \
+# Verify it's working (uses port 80)
+curl -X POST http://localhost/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "haiku", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
