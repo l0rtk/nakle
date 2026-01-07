@@ -11,9 +11,9 @@ services:
     volumes:
       # Mount only the credentials file (requires 'claude login' on host)
       # For local testing (macOS/Linux):
-      # - /home/luka/.claude/.credentials.json:/root/.claude/.credentials.json:ro
-      # For Azure VM deployment, uncomment and update username:
-      - /home/azureuser/.claude/.credentials.json:/root/.claude/.credentials.json:ro
+      - /home/luka/.claude/.credentials.json:/root/.claude/.credentials.json:ro
+      # For Azure VM deployment, comment line above and uncomment below (update username if needed):
+      # - /home/azureuser/.claude/.credentials.json:/root/.claude/.credentials.json:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
