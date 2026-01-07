@@ -21,12 +21,14 @@ cd nakle
 
 # Copy Claude CLI binary to project directory
 cp ~/.local/bin/claude ./
+# Or if installed via npm:
+# cp ~/.npm-global/bin/claude ./
 
 # Authenticate with Claude CLI on host
 claude login
 
-# Update docker-compose.yml with your home directory path
-# Edit line 14 to replace '/home/luka' with your actual home directory
+# Update docker-compose.yml credentials path
+# Comment out line 14 and uncomment line 16, updating 'azureuser' with your username
 
 # Run with docker-compose
 sudo docker compose up -d
@@ -109,12 +111,16 @@ sudo systemctl enable docker
 
 # Copy Claude CLI binary to project directory
 cp ~/.local/bin/claude ./
+# Or if installed via npm:
+cp ~/.npm-global/bin/claude ./
 
 # Authenticate Claude CLI
 claude login
 
-# Update docker-compose.yml with your home directory path
-# Edit line 14 to replace '/home/luka' with your VM user's home directory
+# Update docker-compose.yml credentials path
+# Comment out line 14 (/home/luka) and uncomment line 16
+# Update 'azureuser' with your VM username if different
+nano docker-compose.yml
 
 # Deploy
 sudo docker compose up -d
