@@ -30,7 +30,7 @@ htmlcov/
 *.md
 !README.md
 
-# Plans
+# Plans (but keep the binary)
 .claude/
 
 # Other

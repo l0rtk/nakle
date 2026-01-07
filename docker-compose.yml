@@ -2,14 +2,15 @@ version: '3.8'
 
 services:
   nakle:
-    build: .
+    build:
+      context: .
+      args:
+        - CLAUDE_PATH=${HOME}/.local/bin/claude
     ports:
       - "8000:8000"
     volumes:
       # Mount host's Claude credentials (requires 'claude login' on host)
       - ${HOME}/.claude:/root/.claude:ro
-      # Mount host's Claude CLI binary
-      - ${HOME}/.local/bin/claude:/usr/local/bin/claude:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

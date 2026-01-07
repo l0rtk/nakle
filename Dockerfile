@@ -3,6 +3,9 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
+# Copy Claude CLI binary from build context
+COPY --chmod=755 claude /usr/local/bin/claude
+
 # Copy dependency files
 COPY pyproject.toml ./
 
