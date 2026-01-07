@@ -19,17 +19,25 @@ REST API wrapper for Claude Code headless mode as a pure LLM API (no codebase co
 git clone <your-repo-url>
 cd nakle
 
-# Authenticate with Claude CLI
+# Copy Claude CLI binary to project directory
+cp ~/.local/bin/claude ./
+
+# Authenticate with Claude CLI on host
 claude login
 
+# Update docker-compose.yml with your home directory path
+# Edit line 14 to replace '/home/luka' with your actual home directory
+
 # Run with docker-compose
-docker-compose up -d
+sudo docker compose up -d
 
 # Test the API
 curl -X POST http://localhost:8000/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model": "sonnet", "messages": [{"role": "user", "content": "Hello"}]}'
+  -d '{"model": "haiku", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
+
+**Note**: The Docker setup mounts your Claude credentials from `~/.claude/.credentials.json`. Make sure you've run `claude login` on the host machine before starting the container.
 
 ### Local Development
 
@@ -96,11 +104,25 @@ sudo apt install docker.io docker-compose -y
 sudo systemctl start docker
 sudo systemctl enable docker
 
-# Authenticate Claude CLI on host
+# Install Claude CLI (if not already installed)
+# Follow instructions at https://code.claude.com
+
+# Copy Claude CLI binary to project directory
+cp ~/.local/bin/claude ./
+
+# Authenticate Claude CLI
 claude login
 
+# Update docker-compose.yml with your home directory path
+# Edit line 14 to replace '/home/luka' with your VM user's home directory
+
 # Deploy
-sudo docker-compose up -d
+sudo docker compose up -d
+
+# Verify it's working
+curl -X POST http://localhost:8000/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "haiku", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
 ## Architecture
