@@ -24,14 +24,15 @@ curl -X POST http://localhost:8000/chat/completions \
 
 ### Docker Deployment
 ```bash
+# Authenticate with Claude CLI
+claude login
+
 # Build and run with docker-compose
-cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
 docker-compose up -d
 
 # Or build/run manually
 docker build -t nakle .
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key nakle
+docker run -p 8000:8000 -v $HOME/.claude:/root/.claude:ro nakle
 ```
 
 ## Architecture
