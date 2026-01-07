@@ -27,8 +27,8 @@ cp ~/.local/bin/claude ./
 # Authenticate with Claude CLI on host
 claude login
 
-# Update docker-compose.yml credentials path
-# Comment out line 14 and uncomment line 16, updating 'azureuser' with your username
+# Update docker-compose.yml credentials path if needed
+# (Default is /home/azureuser - change if your username is different)
 
 # Run with docker-compose
 sudo docker compose up -d
@@ -125,10 +125,8 @@ cp ~/.npm-global/bin/claude ./
 # Authenticate Claude CLI
 claude login
 
-# Update docker-compose.yml credentials path
-# Comment out line 14 (/home/luka) and uncomment line 16
-# Update 'azureuser' with your VM username if different
-nano docker-compose.yml
+# Update docker-compose.yml if your username is not 'azureuser'
+# (Default is /home/azureuser - edit line 14 if different)
 
 # Deploy
 sudo docker compose up -d
