@@ -1,9 +1,11 @@
 FROM python:3.11-slim
 
-# Install Claude CLI
+# Install dependencies and Claude CLI
 RUN apt-get update && apt-get install -y \
     curl \
+    ca-certificates \
     && curl -fsSL https://raw.githubusercontent.com/anthropics/claude-code/main/install.sh | sh \
+    && mv /root/.local/bin/claude /usr/local/bin/claude \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
