@@ -76,8 +76,8 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         )
 
         if result.returncode != 0:
-            error_msg = result.stderr.strip() or "Unknown error"
-            raise ClaudeError(f"Claude returned error: {error_msg}")
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            raise ClaudeError(f"Claude returned error (code {result.returncode}): {error_msg}")
 
         # Parse JSON response
         try:
