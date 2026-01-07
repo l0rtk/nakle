@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -e .
 # Copy application code
 COPY src/ ./src/
 
+# Create .claude directory with empty credentials file for mounting
+RUN mkdir -p /root/.claude && touch /root/.claude/.credentials.json
+
 # Expose port
 EXPOSE 8000
 
