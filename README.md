@@ -141,4 +141,4 @@ curl -X POST http://localhost:8000/chat/completions \
 
 - `src/main.py` - FastAPI application with `/chat/completions` and `/health` endpoints
 - `src/claude_runner.py` - Subprocess wrapper that runs `claude -p` with session management
-- `src/models.py` - Pydantic models for request/response
+- `src/models.py` - Pydantic models for request/response# Test deployment
