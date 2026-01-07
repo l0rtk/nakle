@@ -1,6 +1,10 @@
 import subprocess
-from typing import List
+import json
+from typing import List, Dict, Any, Optional
 from .models import ChatMessage
+
+# In-memory session store: conversation_id -> session_id
+SESSION_STORE: Dict[str, str] = {}
 
 CLAUDE_TIMEOUT = 60
 
@@ -31,16 +35,17 @@ def format_messages(messages: List[ChatMessage]) -> str:
     return "\n\n".join(parts)
 
 
-def run_claude(messages: List[ChatMessage], model: str = "sonnet") -> str:
+def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Run Claude Code in headless mode with no context.
 
     Args:
         messages: List of chat messages
         model: Model to use (sonnet, opus, haiku)
+        conversation_id: Optional conversation ID for multi-turn support
 
     Returns:
-        Claude's response as plain text
+        Dict with keys: result (str), session_id (str), usage (dict)
 
     Raises:
         ClaudeError: If Claude returns an error
@@ -51,9 +56,15 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet") -> str:
     cmd = [
         "claude",
         "-p", prompt,
-        "--output-format", "text",
+        "--output-format", "json",
         "--model", model,
+        "--allowedTools", "Read,Grep,Glob,WebSearch",
     ]
+
+    # Resume existing session if conversation_id exists
+    if conversation_id and conversation_id in SESSION_STORE:
+        session_id = SESSION_STORE[conversation_id]
+        cmd.extend(["--resume", session_id])
 
     try:
         result = subprocess.run(
@@ -68,7 +79,25 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet") -> str:
             error_msg = result.stderr.strip() or "Unknown error"
             raise ClaudeError(f"Claude returned error: {error_msg}")
 
-        return result.stdout.strip()
+        # Parse JSON response
+        try:
+            response_data = json.loads(result.stdout.strip())
+            session_id = response_data.get("session_id", "")
+
+            # Store session_id for future requests
+            if conversation_id and session_id:
+                SESSION_STORE[conversation_id] = session_id
+
+            return {
+                "result": response_data.get("result", ""),
+                "session_id": session_id,
+                "usage": response_data.get("usage", {
+                    "input_tokens": 0,
+                    "output_tokens": 0
+                })
+            }
+        except json.JSONDecodeError as e:
+            raise ClaudeError(f"Failed to parse JSON response: {e}")
 
     except subprocess.TimeoutExpired:
         raise ClaudeTimeoutError(f"Request timed out after {CLAUDE_TIMEOUT}s")
