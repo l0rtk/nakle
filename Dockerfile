@@ -3,8 +3,15 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
+# Install Node.js (required for npm-installed Claude CLI)
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Copy Claude CLI binary from build context
-COPY --chmod=755 claude /usr/local/bin/claude
+COPY claude /usr/local/bin/claude
+RUN chmod 755 /usr/local/bin/claude
 
 # Copy dependency files
 COPY pyproject.toml ./
