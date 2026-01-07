@@ -8,6 +8,7 @@ Nakle is a REST API that wraps Claude Code headless mode as a pure LLM API (no c
 
 ## Commands
 
+### Local Development
 ```bash
 # Install
 pip install -e .
@@ -19,6 +20,18 @@ uvicorn src.main:app --reload
 curl -X POST http://localhost:8000/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "sonnet", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+### Docker Deployment
+```bash
+# Build and run with docker-compose
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
+docker-compose up -d
+
+# Or build/run manually
+docker build -t nakle .
+docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key nakle
 ```
 
 ## Architecture
