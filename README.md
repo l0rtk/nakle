@@ -91,7 +91,15 @@ curl -X POST http://localhost:8000/chat/completions \
 
 ## Deployment
 
-### Azure VM
+### Automated Deployment (GitHub Actions)
+
+This repository includes automated deployment via GitHub Actions. See [DEPLOYMENT.md](DEPLOYMENT.md) for complete setup instructions.
+
+**Quick setup:**
+1. Add GitHub secrets: `AZURE_VM_HOST`, `AZURE_VM_USERNAME`, `AZURE_VM_SSH_KEY`
+2. Push to `main` branch - deployment happens automatically
+
+### Manual Deployment - Azure VM
 
 Minimum recommended: **B1ms** (1 vCPU, 2GB RAM, ~$15-20/month)
 
