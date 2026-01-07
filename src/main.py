@@ -20,8 +20,24 @@ def chat_completions(request: ChatCompletionRequest):
         raise HTTPException(status_code=400, detail="messages cannot be empty")
 
     try:
-        response_text = run_claude(request.messages, request.model)
-        return ChatCompletionResponse.create(request.model, response_text)
+        claude_response = run_claude(
+            request.messages,
+            request.model,
+            request.conversation_id
+        )
+
+        response = ChatCompletionResponse.create(
+            model=request.model,
+            content=claude_response["result"],
+            session_id=claude_response["session_id"],
+            usage_data=claude_response["usage"]
+        )
+
+        # Echo back conversation_id if provided
+        if request.conversation_id:
+            response.conversation_id = request.conversation_id
+
+        return response
 
     except ClaudeTimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e))
