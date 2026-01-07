@@ -31,7 +31,7 @@ claude login
 # (Default is /home/azureuser - change if your username is different)
 
 # Run with docker-compose
-sudo docker compose up -d
+sudo docker-compose up -d
 
 # Test the API
 curl -X POST http://localhost:8000/chat/completions \
@@ -129,7 +129,7 @@ claude login
 # (Default is /home/azureuser - edit line 14 if different)
 
 # Deploy
-sudo docker compose up -d
+sudo docker-compose up -d
 
 # Verify it's working
 curl -X POST http://localhost:8000/chat/completions \
