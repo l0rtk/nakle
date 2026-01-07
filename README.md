@@ -86,6 +86,8 @@ curl -X POST http://localhost:8000/chat/completions \
 
 Minimum recommended: **B1ms** (1 vCPU, 2GB RAM, ~$15-20/month)
 
+#### Option 1: Using API Key
+
 ```bash
 # On your Azure VM
 git clone <your-repo-url>
@@ -100,6 +102,29 @@ sudo systemctl enable docker
 # Deploy
 cp .env.example .env
 # Edit .env with your API key
+sudo docker-compose up -d
+```
+
+#### Option 2: Using Host Authentication (No API Key Needed)
+
+```bash
+# On your Azure VM
+git clone <your-repo-url>
+cd nakle
+
+# Set up Docker
+sudo apt update
+sudo apt install docker.io docker-compose -y
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Authenticate Claude CLI on host
+claude login
+
+# Edit docker-compose.yml and uncomment the volume line:
+# - ${HOME}/.claude:/root/.claude:ro
+
+# Deploy (no .env needed)
 sudo docker-compose up -d
 ```
 

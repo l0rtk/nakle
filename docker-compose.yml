@@ -6,8 +6,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Pass your Anthropic API key
+      # Option 1: Pass your Anthropic API key
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      # Option 2: Mount host's Claude credentials (use this if you ran 'claude login' on the host)
+      # Uncomment the line below to use host credentials instead of API key
+      # - ${HOME}/.claude:/root/.claude:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
