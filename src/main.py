@@ -77,7 +77,18 @@ def chat_completions(request: ChatCompletionRequest):
 
     except ClaudeAuthError as e:
         logger.error(f"Auth | {e}")
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "Claude token expired",
+                "instructions": [
+                    "SSH to the server: ssh azureuser@20.64.149.209",
+                    "Run: claude setup-token",
+                    "Follow the prompts to authenticate",
+                    "Restart container: sudo docker-compose restart"
+                ]
+            }
+        )
 
     except ClaudeTimeoutError as e:
         logger.error(f"Timeout | {e}")
