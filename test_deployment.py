@@ -1,51 +1,73 @@
 #!/usr/bin/env python3
 """
-Test script to send prompts to local and Azure VM deployments.
+Integration tests for the Nakle API.
 """
 
 import requests
-import json
+import sys
 
-# Configuration
-LOCAL_URL = "http://localhost:8000/chat/completions"
-AZURE_URL = "http://20.64.149.209/chat/completions"
+BASE_URL = "http://20.64.149.209/chat/completions"
 
-def send_prompt(url: str, prompt: str, model: str = "haiku"):
-    """Send a prompt and wait for response."""
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}]
-    }
 
-    print(f"\n📤 Sending to {url}")
-    print(f"Prompt: {prompt}")
+def ask(prompt: str) -> str:
+    """Send a prompt and return the response content."""
+    response = requests.post(
+        BASE_URL,
+        headers={"Content-Type": "application/json"},
+        json={
+            "model": "haiku",
+            "messages": [{"role": "user", "content": prompt}]
+        },
+        timeout=60
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
 
-    try:
-        response = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
-            json=payload,
-            timeout=300
-        )
-        response.raise_for_status()
-        data = response.json()
 
-        print(f"✅ Response received:")
-        print(f"{data['choices'][0]['message']['content']}")
-        print(f"Tokens: {data.get('usage', {})}")
+def test_addition():
+    """Test: 2 + 2 = 4"""
+    answer = ask("What is 2+2? Reply with only the number, nothing else.")
+    assert answer == "4", f"Expected '4', got '{answer}'"
+    print("✓ test_addition passed")
 
-    except Exception as e:
-        print(f"❌ Error: {e}")
+
+def test_multiplication():
+    """Test: 7 * 8 = 56"""
+    answer = ask("What is 7 times 8? Reply with only the number, nothing else.")
+    assert answer == "56", f"Expected '56', got '{answer}'"
+    print("✓ test_multiplication passed")
+
+
+def test_capital():
+    """Test: Capital of France"""
+    answer = ask("What is the capital of France? Reply with only the city name, nothing else.")
+    assert answer.lower() == "paris", f"Expected 'Paris', got '{answer}'"
+    print("✓ test_capital passed")
+
+
+def test_reverse_string():
+    """Test: Reverse 'hello'"""
+    answer = ask("Reverse the string 'hello'. Reply with only the reversed string, nothing else.")
+    assert answer.lower() == "olleh", f"Expected 'olleh', got '{answer}'"
+    print("✓ test_reverse_string passed")
+
 
 def main():
-    prompt = input("Enter your prompt: ")
+    tests = [test_addition, test_multiplication, test_capital, test_reverse_string]
+    passed = 0
+    failed = 0
 
-    print("\n" + "="*60)
-    print("AZURE SERVER")
-    print("="*60)
-    send_prompt(AZURE_URL, prompt)
+    for test in tests:
+        try:
+            test()
+            passed += 1
+        except Exception as e:
+            print(f"✗ {test.__name__} failed: {e}")
+            failed += 1
 
-    print("\n✅ Done!")
+    print(f"\nResults: {passed}/{len(tests)} passed")
+    sys.exit(0 if failed == 0 else 1)
+
 
 if __name__ == "__main__":
     main()
