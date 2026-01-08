@@ -1,7 +1,12 @@
 import logging
+import json
+import os
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from .models import ChatCompletionRequest, ChatCompletionResponse
 from .claude_runner import run_claude, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
+
+CREDENTIALS_PATH = os.path.expanduser("~/.claude/.credentials.json")
 
 # Configure logging
 logging.basicConfig(
@@ -21,6 +26,41 @@ app = FastAPI(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/status")
+def status():
+    """
+    Check authentication status and token expiration.
+    """
+    try:
+        with open(CREDENTIALS_PATH, "r") as f:
+            creds = json.load(f)
+
+        oauth = creds.get("claudeAiOauth", {})
+        expires_at_ms = oauth.get("expiresAt", 0)
+
+        if expires_at_ms:
+            expires_at = datetime.fromtimestamp(expires_at_ms / 1000)
+            now = datetime.now()
+            remaining = expires_at - now
+            remaining_minutes = remaining.total_seconds() / 60
+            is_expired = now >= expires_at
+
+            return {
+                "authenticated": not is_expired,
+                "expires_at": expires_at.isoformat(),
+                "expires_in_minutes": round(remaining_minutes) if not is_expired else 0,
+                "subscription": oauth.get("subscriptionType", "unknown"),
+                "status": "expired" if is_expired else "valid"
+            }
+
+        return {"authenticated": False, "status": "no_token"}
+
+    except FileNotFoundError:
+        return {"authenticated": False, "status": "no_credentials_file"}
+    except Exception as e:
+        return {"authenticated": False, "status": "error", "error": str(e)}
 
 
 @app.get("/login")
