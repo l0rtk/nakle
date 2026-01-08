@@ -1,7 +1,11 @@
 import logging
 from fastapi import FastAPI, HTTPException
 from .models import ChatCompletionRequest, ChatCompletionResponse
-from .claude_runner import run_claude, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
+import os
+from .claude_runner import run_claude, run_claude_login, ClaudeError, ClaudeTimeoutError, ClaudeAuthError, ClaudeLoginError
+
+# Public host for login URL (set via environment variable or default)
+PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "localhost")
 
 # Configure logging
 logging.basicConfig(
@@ -21,6 +25,27 @@ app = FastAPI(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/login")
+def login():
+    """
+    Initiate Claude login and return the login URL.
+    Open the URL in your browser to complete authentication.
+    """
+    logger.info("Login | Starting login process")
+
+    try:
+        login_url = run_claude_login(public_host=PUBLIC_HOST)
+        logger.info(f"Login | URL generated: {login_url}")
+        return {
+            "login_url": login_url,
+            "instructions": "Open this URL in your browser to complete authentication"
+        }
+
+    except ClaudeLoginError as e:
+        logger.error(f"Login | Failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/chat/completions", response_model=ChatCompletionResponse)

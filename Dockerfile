@@ -22,11 +22,11 @@ RUN pip install --no-cache-dir -e .
 # Copy application code
 COPY src/ ./src/
 
-# Create .claude directory with empty credentials file for mounting
-RUN mkdir -p /root/.claude && touch /root/.claude/.credentials.json
+# Create .claude directory for mounting
+RUN mkdir -p /root/.claude
 
-# Expose port
-EXPOSE 8000
+# Expose ports (8000 for API, 8080 for OAuth callback)
+EXPOSE 8000 8080
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

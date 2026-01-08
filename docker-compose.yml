@@ -8,12 +8,15 @@ services:
         - CLAUDE_PATH=${HOME}/.local/bin/claude
     ports:
       - "80:8000"
+      - "8080:8080"  # OAuth callback port for /login
+    environment:
+      - PUBLIC_HOST=20.64.149.209  # Azure VM public IP for login URL
     volumes:
-      # Mount only the credentials file (requires 'claude login' on host)
+      # Mount .claude directory (read-write for login to save credentials)
       # Default: Azure VM deployment
-      - /home/azureuser/.claude/.credentials.json:/root/.claude/.credentials.json:ro
-      # For local testing, comment line above and uncomment below (update username if needed):
-      # - /home/luka/.claude/.credentials.json:/root/.claude/.credentials.json:ro
+      - /home/azureuser/.claude:/root/.claude
+      # For local testing, comment line above and uncomment below:
+      # - /home/luka/.claude:/root/.claude
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

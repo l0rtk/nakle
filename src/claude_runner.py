@@ -1,12 +1,18 @@
 import subprocess
 import json
+import re
+import threading
 from typing import List, Dict, Any, Optional
 from .models import ChatMessage
 
 # In-memory session store: conversation_id -> session_id
 SESSION_STORE: Dict[str, str] = {}
 
+# Active login process
+LOGIN_PROCESS: Optional[subprocess.Popen] = None
+
 CLAUDE_TIMEOUT = 60
+LOGIN_URL_TIMEOUT = 30  # Timeout for getting login URL
 
 
 class ClaudeError(Exception):
@@ -22,6 +28,81 @@ class ClaudeTimeoutError(ClaudeError):
 class ClaudeAuthError(ClaudeError):
     """Raised when Claude authentication fails (token expired)."""
     pass
+
+
+class ClaudeLoginError(ClaudeError):
+    """Raised when login process fails."""
+    pass
+
+
+def run_claude_login(public_host: str = "localhost") -> str:
+    """
+    Start Claude login process and return the login URL.
+
+    Args:
+        public_host: Public hostname/IP to replace localhost in the URL
+
+    Returns:
+        Login URL with public host
+
+    Raises:
+        ClaudeLoginError: If login process fails or URL not found
+    """
+    global LOGIN_PROCESS
+
+    # Kill any existing login process
+    if LOGIN_PROCESS is not None:
+        try:
+            LOGIN_PROCESS.terminate()
+            LOGIN_PROCESS.wait(timeout=5)
+        except Exception:
+            pass
+        LOGIN_PROCESS = None
+
+    try:
+        # Start claude login process
+        LOGIN_PROCESS = subprocess.Popen(
+            ["claude", "/login"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd="/tmp",
+        )
+
+        # Read output until we find the URL
+        url_pattern = re.compile(r'(https?://localhost:\d+[^\s]*)')
+        output_lines = []
+
+        def read_output():
+            for line in LOGIN_PROCESS.stdout:
+                output_lines.append(line)
+
+        reader_thread = threading.Thread(target=read_output)
+        reader_thread.daemon = True
+        reader_thread.start()
+
+        # Wait for URL with timeout
+        reader_thread.join(timeout=LOGIN_URL_TIMEOUT)
+
+        # Search for URL in output
+        full_output = "".join(output_lines)
+        match = url_pattern.search(full_output)
+
+        if match:
+            url = match.group(1)
+            # Replace localhost with public host
+            public_url = url.replace("localhost", public_host)
+            return public_url
+
+        raise ClaudeLoginError(f"Could not find login URL in output: {full_output[:500]}")
+
+    except Exception as e:
+        if LOGIN_PROCESS:
+            LOGIN_PROCESS.terminate()
+            LOGIN_PROCESS = None
+        if isinstance(e, ClaudeLoginError):
+            raise
+        raise ClaudeLoginError(f"Login failed: {e}")
 
 
 def format_messages(messages: List[ChatMessage]) -> str:
@@ -85,7 +166,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
 
             # Check for authentication errors
             if "authentication_error" in error_msg or "token has expired" in error_msg.lower() or "Please run /login" in error_msg:
-                raise ClaudeAuthError("Claude token expired. Run 'claude login' on the server to re-authenticate.")
+                raise ClaudeAuthError("Claude token expired. Call POST /login to re-authenticate.")
 
             raise ClaudeError(f"Claude returned error (code {result.returncode}): {error_msg}")
 
