@@ -25,7 +25,7 @@ def send_prompt(url: str, prompt: str, model: str = "haiku"):
             url,
             headers={"Content-Type": "application/json"},
             json=payload,
-            timeout=60
+            timeout=300
         )
         response.raise_for_status()
         data = response.json()
