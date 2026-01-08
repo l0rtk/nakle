@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI, HTTPException
 from .models import ChatCompletionRequest, ChatCompletionResponse
-from .claude_runner import run_claude, ClaudeError, ClaudeTimeoutError
+from .claude_runner import run_claude, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
 
 # Configure logging
 logging.basicConfig(
@@ -55,6 +55,10 @@ def chat_completions(request: ChatCompletionRequest):
         logger.info(f"Success | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
 
         return response
+
+    except ClaudeAuthError as e:
+        logger.error(f"Auth | {e}")
+        raise HTTPException(status_code=401, detail=str(e))
 
     except ClaudeTimeoutError as e:
         logger.error(f"Timeout | {e}")

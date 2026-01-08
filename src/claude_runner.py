@@ -19,6 +19,11 @@ class ClaudeTimeoutError(ClaudeError):
     pass
 
 
+class ClaudeAuthError(ClaudeError):
+    """Raised when Claude authentication fails (token expired)."""
+    pass
+
+
 def format_messages(messages: List[ChatMessage]) -> str:
     """Convert messages list to a single prompt string."""
     parts = []
@@ -77,6 +82,11 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
 
         if result.returncode != 0:
             error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+
+            # Check for authentication errors
+            if "authentication_error" in error_msg or "token has expired" in error_msg.lower() or "Please run /login" in error_msg:
+                raise ClaudeAuthError("Claude token expired. Run 'claude login' on the server to re-authenticate.")
+
             raise ClaudeError(f"Claude returned error (code {result.returncode}): {error_msg}")
 
         # Parse JSON response
