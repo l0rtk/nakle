@@ -1,11 +1,7 @@
 import logging
 from fastapi import FastAPI, HTTPException
 from .models import ChatCompletionRequest, ChatCompletionResponse
-import os
-from .claude_runner import run_claude, run_claude_login, ClaudeError, ClaudeTimeoutError, ClaudeAuthError, ClaudeLoginError
-
-# Public host for login URL (set via environment variable or default)
-PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "localhost")
+from .claude_runner import run_claude, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
 
 # Configure logging
 logging.basicConfig(
@@ -27,25 +23,23 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/login")
+@app.get("/login")
 def login():
     """
-    Initiate Claude login and return the login URL.
-    Open the URL in your browser to complete authentication.
+    Return instructions for re-authenticating Claude.
     """
-    logger.info("Login | Starting login process")
-
-    try:
-        login_url = run_claude_login(public_host=PUBLIC_HOST)
-        logger.info(f"Login | URL generated: {login_url}")
-        return {
-            "login_url": login_url,
-            "instructions": "Open this URL in your browser to complete authentication"
-        }
-
-    except ClaudeLoginError as e:
-        logger.error(f"Login | Failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info("Login | Instructions requested")
+    return {
+        "status": "auth_required",
+        "instructions": [
+            "SSH to the server: ssh azureuser@20.64.149.209",
+            "Run: claude setup-token",
+            "Follow the prompts to authenticate",
+            "Restart container: sudo docker-compose restart"
+        ],
+        "ssh_command": "ssh azureuser@20.64.149.209",
+        "login_command": "claude setup-token"
+    }
 
 
 @app.post("/chat/completions", response_model=ChatCompletionResponse)
