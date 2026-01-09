@@ -96,7 +96,8 @@ def chat_completions(request: ChatCompletionRequest):
         claude_response = run_claude(
             request.messages,
             request.model,
-            request.conversation_id
+            request.conversation_id,
+            request.timeout
         )
 
         response = ChatCompletionResponse.create(

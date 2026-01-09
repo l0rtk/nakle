@@ -41,7 +41,7 @@ def format_messages(messages: List[ChatMessage]) -> str:
     return "\n\n".join(parts)
 
 
-def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None) -> Dict[str, Any]:
+def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None) -> Dict[str, Any]:
     """
     Run Claude Code in headless mode with no context.
 
@@ -49,6 +49,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         messages: List of chat messages
         model: Model to use (sonnet, opus, haiku)
         conversation_id: Optional conversation ID for multi-turn support
+        timeout: Request timeout in seconds (default: DEFAULT_TIMEOUT, max: MAX_TIMEOUT)
 
     Returns:
         Dict with keys: result (str), session_id (str), usage (dict)
@@ -58,6 +59,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         ClaudeTimeoutError: If the request times out
     """
     prompt = format_messages(messages)
+    effective_timeout = min(timeout or DEFAULT_TIMEOUT, MAX_TIMEOUT)
 
     cmd = [
         "claude",
@@ -77,7 +79,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             cmd,
             capture_output=True,
             text=True,
-            timeout=CLAUDE_TIMEOUT,
+            timeout=effective_timeout,
             cwd="/tmp",  # Run from /tmp to avoid directory context
         )
 
@@ -111,4 +113,4 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             raise ClaudeError(f"Failed to parse JSON response: {e}")
 
     except subprocess.TimeoutExpired:
-        raise ClaudeTimeoutError(f"Request timed out after {CLAUDE_TIMEOUT}s")
+        raise ClaudeTimeoutError(f"Request timed out after {effective_timeout}s")
