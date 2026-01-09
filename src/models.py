@@ -13,6 +13,7 @@ class ChatCompletionRequest(BaseModel):
     model: Literal["sonnet", "opus", "haiku"] = "sonnet"
     messages: List[ChatMessage]
     conversation_id: Optional[str] = None
+    timeout: Optional[int] = 300  # seconds, max 300
 
 
 class Choice(BaseModel):

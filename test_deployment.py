@@ -16,9 +16,10 @@ def ask(prompt: str) -> str:
         headers={"Content-Type": "application/json"},
         json={
             "model": "haiku",
-            "messages": [{"role": "user", "content": prompt}]
+            "messages": [{"role": "user", "content": prompt}],
+            "timeout": 120
         },
-        timeout=60
+        timeout=180
     )
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"].strip()

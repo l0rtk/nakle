@@ -6,7 +6,8 @@ from .models import ChatMessage
 # In-memory session store: conversation_id -> session_id
 SESSION_STORE: Dict[str, str] = {}
 
-CLAUDE_TIMEOUT = 60
+DEFAULT_TIMEOUT = 30
+MAX_TIMEOUT = 600
 
 
 class ClaudeError(Exception):
