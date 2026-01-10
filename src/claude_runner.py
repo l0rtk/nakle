@@ -63,7 +63,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
 
     cmd = [
         "claude",
-        "-p", prompt,
+        "-p", "-",  # Read from stdin instead of argument
         "--output-format", "json",
         "--model", model,
         "--allowedTools", "Read,Grep,Glob,WebSearch",
@@ -77,6 +77,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
     try:
         result = subprocess.run(
             cmd,
+            input=prompt,  # Pass prompt via stdin
             capture_output=True,
             text=True,
             timeout=effective_timeout,
