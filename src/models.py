@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 from pydantic import BaseModel
 import uuid
 import time
@@ -9,11 +9,17 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class ResponseFormat(BaseModel):
+    type: Literal["text", "json_schema"] = "text"
+    json_schema: Optional[Dict[str, Any]] = None
+
+
 class ChatCompletionRequest(BaseModel):
     model: Literal["sonnet", "opus", "haiku"] = "sonnet"
     messages: List[ChatMessage]
     conversation_id: Optional[str] = None
     timeout: Optional[int] = 300  # seconds, max 300
+    response_format: Optional[ResponseFormat] = None
 
 
 class Choice(BaseModel):
@@ -47,9 +53,10 @@ class ChatCompletionResponse(BaseModel):
     choices: List[Choice]
     usage: Usage
     conversation_id: Optional[str] = None
+    structured_output: Optional[Any] = None
 
     @classmethod
-    def create(cls, model: str, content: str, session_id: str = "", usage_data: dict = None) -> "ChatCompletionResponse":
+    def create(cls, model: str, content: str, session_id: str = "", usage_data: dict = None, structured_output: Any = None) -> "ChatCompletionResponse":
         usage = Usage.from_claude_usage(usage_data) if usage_data else Usage()
 
         return cls(
@@ -63,4 +70,5 @@ class ChatCompletionResponse(BaseModel):
                 )
             ],
             usage=usage,
+            structured_output=structured_output,
         )

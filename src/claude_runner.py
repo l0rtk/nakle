@@ -41,7 +41,7 @@ def format_messages(messages: List[ChatMessage]) -> str:
     return "\n\n".join(parts)
 
 
-def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None) -> Dict[str, Any]:
+def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None, json_schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Run Claude Code in headless mode with no context.
 
@@ -50,9 +50,10 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         model: Model to use (sonnet, opus, haiku)
         conversation_id: Optional conversation ID for multi-turn support
         timeout: Request timeout in seconds (default: DEFAULT_TIMEOUT, max: MAX_TIMEOUT)
+        json_schema: Optional JSON schema for structured output
 
     Returns:
-        Dict with keys: result (str), session_id (str), usage (dict)
+        Dict with keys: result (str), session_id (str), usage (dict), structured_output (optional)
 
     Raises:
         ClaudeError: If Claude returns an error
@@ -68,6 +69,10 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         "--model", model,
         "--allowedTools", "Read,Grep,Glob,WebSearch",
     ]
+
+    # Add JSON schema if provided
+    if json_schema:
+        cmd.extend(["--json-schema", json.dumps(json_schema)])
 
     # Resume existing session if conversation_id exists
     if conversation_id and conversation_id in SESSION_STORE:
@@ -102,7 +107,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             if conversation_id and session_id:
                 SESSION_STORE[conversation_id] = session_id
 
-            return {
+            response = {
                 "result": response_data.get("result", ""),
                 "session_id": session_id,
                 "usage": response_data.get("usage", {
@@ -110,6 +115,12 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
                     "output_tokens": 0
                 })
             }
+
+            # Include structured_output if present
+            if "structured_output" in response_data:
+                response["structured_output"] = response_data["structured_output"]
+
+            return response
         except json.JSONDecodeError as e:
             raise ClaudeError(f"Failed to parse JSON response: {e}")
 

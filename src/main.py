@@ -92,19 +92,26 @@ def chat_completions(request: ChatCompletionRequest):
     prompt_preview = last_msg[:50] + "..." if len(last_msg) > 50 else last_msg
     logger.info(f"Request | model={request.model} | prompt=\"{prompt_preview}\"")
 
+    # Extract json_schema if response_format is json_schema
+    json_schema = None
+    if request.response_format and request.response_format.type == "json_schema":
+        json_schema = request.response_format.json_schema
+
     try:
         claude_response = run_claude(
             request.messages,
             request.model,
             request.conversation_id,
-            request.timeout
+            request.timeout,
+            json_schema
         )
 
         response = ChatCompletionResponse.create(
             model=request.model,
             content=claude_response["result"],
             session_id=claude_response["session_id"],
-            usage_data=claude_response["usage"]
+            usage_data=claude_response["usage"],
+            structured_output=claude_response.get("structured_output")
         )
 
         # Echo back conversation_id if provided
