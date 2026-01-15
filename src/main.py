@@ -87,9 +87,15 @@ def chat_completions(request: ChatCompletionRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages cannot be empty")
 
-    # Get prompt preview
-    last_msg = request.messages[-1].content
-    prompt_preview = last_msg[:50] + "..." if len(last_msg) > 50 else last_msg
+    # Get prompt preview (handle multimodal content)
+    last_content = request.messages[-1].content
+    if isinstance(last_content, str):
+        prompt_preview = last_content[:50] + "..." if len(last_content) > 50 else last_content
+    else:
+        # Multimodal: extract text parts
+        text_parts = [p.text for p in last_content if hasattr(p, "text")]
+        prompt_text = " ".join(text_parts) if text_parts else "[image]"
+        prompt_preview = prompt_text[:50] + "..." if len(prompt_text) > 50 else prompt_text
     logger.info(f"Request | model={request.model} | prompt=\"{prompt_preview}\"")
 
     # Extract json_schema if response_format is json_schema

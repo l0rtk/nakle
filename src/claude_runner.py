@@ -1,6 +1,9 @@
 import subprocess
 import json
-from typing import List, Dict, Any, Optional
+import base64
+import tempfile
+import os
+from typing import List, Dict, Any, Optional, Tuple
 from .models import ChatMessage
 
 # In-memory session store: conversation_id -> session_id
@@ -25,20 +28,84 @@ class ClaudeAuthError(ClaudeError):
     pass
 
 
-def format_messages(messages: List[ChatMessage]) -> str:
-    """Convert messages list to a single prompt string."""
+def extract_content_and_images(content) -> Tuple[str, List[str]]:
+    """
+    Extract text content and save images to temp files.
+    Returns (text_content, list_of_image_paths).
+    """
+    if isinstance(content, str):
+        return content, []
+
+    text_parts = []
+    image_paths = []
+
+    for part in content:
+        if isinstance(part, dict):
+            part_type = part.get("type")
+            if part_type == "text":
+                text_parts.append(part.get("text", ""))
+            elif part_type == "image_url":
+                image_url = part.get("image_url", {}).get("url", "")
+                if image_url.startswith("data:"):
+                    # Parse base64 data URL
+                    # Format: data:image/png;base64,<data>
+                    try:
+                        header, b64data = image_url.split(",", 1)
+                        # Extract mime type for extension
+                        mime = header.split(";")[0].split(":")[1]
+                        ext = mime.split("/")[1] if "/" in mime else "png"
+                        # Save to temp file
+                        fd, path = tempfile.mkstemp(suffix=f".{ext}", dir="/tmp")
+                        with os.fdopen(fd, "wb") as f:
+                            f.write(base64.b64decode(b64data))
+                        image_paths.append(path)
+                    except Exception:
+                        pass  # Skip invalid images
+        else:
+            # Handle Pydantic models
+            if hasattr(part, "type"):
+                if part.type == "text":
+                    text_parts.append(part.text)
+                elif part.type == "image_url":
+                    image_url = part.image_url.url
+                    if image_url.startswith("data:"):
+                        try:
+                            header, b64data = image_url.split(",", 1)
+                            mime = header.split(";")[0].split(":")[1]
+                            ext = mime.split("/")[1] if "/" in mime else "png"
+                            fd, path = tempfile.mkstemp(suffix=f".{ext}", dir="/tmp")
+                            with os.fdopen(fd, "wb") as f:
+                                f.write(base64.b64decode(b64data))
+                            image_paths.append(path)
+                        except Exception:
+                            pass
+
+    return " ".join(text_parts), image_paths
+
+
+def format_messages(messages: List[ChatMessage]) -> Tuple[str, List[str]]:
+    """Convert messages list to a single prompt string and collect image paths."""
     parts = []
+    all_image_paths = []
 
     for msg in messages:
+        text_content, image_paths = extract_content_and_images(msg.content)
+        all_image_paths.extend(image_paths)
+
+        # Add image references to the text
+        if image_paths:
+            image_refs = " ".join([f"[See image: {p}]" for p in image_paths])
+            text_content = f"{text_content}\n{image_refs}"
+
         if msg.role == "system":
-            parts.append(f"System: {msg.content}")
+            parts.append(f"System: {text_content}")
         elif msg.role == "user":
-            parts.append(f"User: {msg.content}")
+            parts.append(f"User: {text_content}")
         elif msg.role == "assistant":
-            parts.append(f"Assistant: {msg.content}")
+            parts.append(f"Assistant: {text_content}")
 
     parts.append("Assistant:")
-    return "\n\n".join(parts)
+    return "\n\n".join(parts), all_image_paths
 
 
 def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None, json_schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -59,7 +126,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         ClaudeError: If Claude returns an error
         ClaudeTimeoutError: If the request times out
     """
-    prompt = format_messages(messages)
+    prompt, image_paths = format_messages(messages)
     effective_timeout = min(timeout or DEFAULT_TIMEOUT, MAX_TIMEOUT)
 
     cmd = [
@@ -88,6 +155,13 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             timeout=effective_timeout,
             cwd="/tmp",  # Run from /tmp to avoid directory context
         )
+
+        # Clean up temp image files
+        for path in image_paths:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
 
         if result.returncode != 0:
             error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
@@ -125,4 +199,10 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             raise ClaudeError(f"Failed to parse JSON response: {e}")
 
     except subprocess.TimeoutExpired:
+        # Clean up temp image files on timeout
+        for path in image_paths:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
         raise ClaudeTimeoutError(f"Request timed out after {effective_timeout}s")

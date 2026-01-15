@@ -1,12 +1,29 @@
-from typing import List, Literal, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any, Union
 from pydantic import BaseModel
 import uuid
 import time
 
 
+class ImageUrl(BaseModel):
+    url: str  # Can be base64 data URL or file URL
+
+
+class ContentPartText(BaseModel):
+    type: Literal["text"]
+    text: str
+
+
+class ContentPartImage(BaseModel):
+    type: Literal["image_url"]
+    image_url: ImageUrl
+
+
+ContentPart = Union[ContentPartText, ContentPartImage]
+
+
 class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: Union[str, List[ContentPart]]  # String or multimodal content
 
 
 class ResponseFormat(BaseModel):
