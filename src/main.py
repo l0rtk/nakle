@@ -3,8 +3,9 @@ import json
 import os
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from .models import ChatCompletionRequest, ChatCompletionResponse
-from .claude_runner import run_claude, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
+from .claude_runner import run_claude, run_claude_stream, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
 
 CREDENTIALS_PATH = os.path.expanduser("~/.claude/.credentials.json")
 
@@ -82,7 +83,7 @@ def login():
     }
 
 
-@app.post("/chat/completions", response_model=ChatCompletionResponse)
+@app.post("/chat/completions")
 def chat_completions(request: ChatCompletionRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages cannot be empty")
@@ -96,7 +97,18 @@ def chat_completions(request: ChatCompletionRequest):
         text_parts = [p.text for p in last_content if hasattr(p, "text")]
         prompt_text = " ".join(text_parts) if text_parts else "[image]"
         prompt_preview = prompt_text[:50] + "..." if len(prompt_text) > 50 else prompt_text
-    logger.info(f"Request | model={request.model} | prompt=\"{prompt_preview}\"")
+    logger.info(f"Request | model={request.model} | stream={request.stream} | prompt=\"{prompt_preview}\"")
+
+    # Handle streaming request
+    if request.stream:
+        try:
+            return StreamingResponse(
+                run_claude_stream(request.messages, request.model, request.conversation_id),
+                media_type="text/event-stream"
+            )
+        except ClaudeError as e:
+            logger.error(f"Stream Error | {e}")
+            raise HTTPException(status_code=502, detail=str(e))
 
     # Extract json_schema if response_format is json_schema
     json_schema = None

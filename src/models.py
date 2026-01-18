@@ -37,6 +37,7 @@ class ChatCompletionRequest(BaseModel):
     conversation_id: Optional[str] = None
     timeout: Optional[int] = 300  # seconds, max 300
     response_format: Optional[ResponseFormat] = None
+    stream: bool = False
 
 
 class Choice(BaseModel):

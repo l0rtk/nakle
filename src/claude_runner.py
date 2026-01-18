@@ -3,7 +3,7 @@ import json
 import base64
 import tempfile
 import os
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Generator
 from .models import ChatMessage
 
 # In-memory session store: conversation_id -> session_id
@@ -206,3 +206,95 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             except Exception:
                 pass
         raise ClaudeTimeoutError(f"Request timed out after {effective_timeout}s")
+
+
+def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None) -> Generator[str, None, None]:
+    """
+    Run Claude Code in headless mode with streaming output.
+
+    Yields SSE-formatted events.
+    """
+    prompt, image_paths = format_messages(messages)
+
+    cmd = [
+        "claude",
+        "-p", "-",
+        "--output-format", "stream-json",
+        "--model", model,
+        "--allowedTools", "Read,Grep,Glob,WebSearch",
+    ]
+
+    # Resume existing session if conversation_id exists
+    if conversation_id and conversation_id in SESSION_STORE:
+        session_id = SESSION_STORE[conversation_id]
+        cmd.extend(["--resume", session_id])
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd="/tmp",
+        )
+
+        # Send prompt via stdin
+        process.stdin.write(prompt)
+        process.stdin.close()
+
+        # Stream output line by line
+        for line in process.stdout:
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                event = json.loads(line)
+                event_type = event.get("type", "")
+
+                # Handle assistant message with content
+                if event_type == "assistant":
+                    content = event.get("message", {}).get("content", [])
+                    for block in content:
+                        if block.get("type") == "text":
+                            text = block.get("text", "")
+                            if text:
+                                # Yield SSE format
+                                sse_data = json.dumps({
+                                    "choices": [{
+                                        "delta": {"content": text},
+                                        "index": 0
+                                    }]
+                                })
+                                yield f"data: {sse_data}\n\n"
+
+                # Handle result event (final)
+                elif event_type == "result":
+                    session_id = event.get("session_id", "")
+                    if conversation_id and session_id:
+                        SESSION_STORE[conversation_id] = session_id
+
+            except json.JSONDecodeError:
+                continue
+
+        process.wait()
+
+        # Clean up temp image files
+        for path in image_paths:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+
+        # Send done signal
+        yield "data: [DONE]\n\n"
+
+    except Exception as e:
+        # Clean up on error
+        for path in image_paths:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+        raise ClaudeError(f"Streaming error: {e}")
