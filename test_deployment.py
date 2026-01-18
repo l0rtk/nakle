@@ -5,6 +5,7 @@ Integration tests for the Nakle API.
 
 import requests
 import sys
+import json
 
 BASE_URL = "http://20.64.149.209/chat/completions"
 
@@ -53,8 +54,38 @@ def test_reverse_string():
     print("✓ test_reverse_string passed")
 
 
+def test_streaming():
+    """Test: Streaming response"""
+    response = requests.post(
+        BASE_URL,
+        headers={"Content-Type": "application/json"},
+        json={
+            "model": "haiku",
+            "messages": [{"role": "user", "content": "Say 'hello' and nothing else."}],
+            "stream": True
+        },
+        stream=True,
+        timeout=60
+    )
+    response.raise_for_status()
+
+    chunks = []
+    for line in response.iter_lines():
+        if line:
+            line = line.decode()
+            if line.startswith("data: ") and line != "data: [DONE]":
+                data = json.loads(line[6:])
+                content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                if content:
+                    chunks.append(content)
+
+    full_response = "".join(chunks).lower()
+    assert "hello" in full_response, f"Expected 'hello' in response, got '{full_response}'"
+    print("✓ test_streaming passed")
+
+
 def main():
-    tests = [test_addition, test_multiplication, test_capital, test_reverse_string]
+    tests = [test_addition, test_multiplication, test_capital, test_reverse_string, test_streaming]
     passed = 0
     failed = 0
 

@@ -220,6 +220,7 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
         "claude",
         "-p", "-",
         "--output-format", "stream-json",
+        "--verbose",
         "--model", model,
         "--allowedTools", "Read,Grep,Glob,WebSearch",
     ]
