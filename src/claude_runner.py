@@ -221,6 +221,7 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
         "-p", "-",
         "--output-format", "stream-json",
         "--verbose",
+        "--include-partial-messages",  # Enable real token streaming
         "--model", model,
         "--allowedTools", "Read,Grep,Glob,WebSearch",
     ]
@@ -254,14 +255,16 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
                 event = json.loads(line)
                 event_type = event.get("type", "")
 
-                # Handle assistant message with content
-                if event_type == "assistant":
-                    content = event.get("message", {}).get("content", [])
-                    for block in content:
-                        if block.get("type") == "text":
-                            text = block.get("text", "")
+                # Handle streaming delta events (real-time tokens)
+                if event_type == "stream_event":
+                    inner_event = event.get("event", {})
+                    inner_type = inner_event.get("type", "")
+
+                    if inner_type == "content_block_delta":
+                        delta = inner_event.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            text = delta.get("text", "")
                             if text:
-                                # Yield SSE format
                                 sse_data = json.dumps({
                                     "choices": [{
                                         "delta": {"content": text},
