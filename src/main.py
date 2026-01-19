@@ -4,7 +4,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
 from .models import (
     ChatCompletionRequest, ChatCompletionResponse,
     UsageResponse, UsageStatsResponse, UsageSummary, UsageRecord
@@ -242,3 +242,204 @@ def get_usage_statistics(
         period_start=start,
         period_end=end
     )
+
+
+@app.get("/usage/dashboard", response_class=HTMLResponse)
+def usage_dashboard():
+    """Visual HTML dashboard for usage statistics."""
+    stats = get_usage_stats()
+    records, total_count = get_usage_records(limit=20)
+
+    # Calculate totals
+    total_requests = sum(s["total_requests"] for s in stats)
+    total_tokens = sum(s["total_tokens"] for s in stats)
+    total_cost = sum(s["total_cost_usd"] or 0 for s in stats)
+
+    # Build source rows
+    source_rows = ""
+    for s in stats:
+        cost = s["total_cost_usd"] or 0
+        source_rows += f"""
+        <tr>
+            <td><strong>{s['source']}</strong></td>
+            <td>{s['total_requests']:,}</td>
+            <td>{s['total_input_tokens']:,}</td>
+            <td>{s['total_output_tokens']:,}</td>
+            <td>{s['total_tokens']:,}</td>
+            <td>${cost:.4f}</td>
+        </tr>"""
+
+    # Build recent records rows
+    record_rows = ""
+    for r in records:
+        cost = r["cost_usd"] or 0
+        ts = r["timestamp"][:19].replace("T", " ")
+        record_rows += f"""
+        <tr>
+            <td>{ts}</td>
+            <td>{r['source']}</td>
+            <td>{r['model']}</td>
+            <td>{r['input_tokens']:,}+{r['output_tokens']:,}</td>
+            <td>${cost:.4f}</td>
+        </tr>"""
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Nakle Usage Dashboard</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: #0f172a;
+                color: #e2e8f0;
+                padding: 2rem;
+                min-height: 100vh;
+            }}
+            h1 {{
+                font-size: 1.8rem;
+                margin-bottom: 1.5rem;
+                color: #f8fafc;
+            }}
+            h2 {{
+                font-size: 1.2rem;
+                margin: 2rem 0 1rem;
+                color: #94a3b8;
+            }}
+            .cards {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+                margin-bottom: 2rem;
+            }}
+            .card {{
+                background: #1e293b;
+                border-radius: 12px;
+                padding: 1.5rem;
+                border: 1px solid #334155;
+            }}
+            .card-label {{
+                font-size: 0.85rem;
+                color: #94a3b8;
+                margin-bottom: 0.5rem;
+            }}
+            .card-value {{
+                font-size: 2rem;
+                font-weight: 600;
+                color: #f8fafc;
+            }}
+            .card-value.cost {{
+                color: #4ade80;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                background: #1e293b;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 1px solid #334155;
+            }}
+            th, td {{
+                padding: 0.75rem 1rem;
+                text-align: left;
+                border-bottom: 1px solid #334155;
+            }}
+            th {{
+                background: #334155;
+                font-weight: 600;
+                color: #f8fafc;
+                font-size: 0.85rem;
+            }}
+            tr:last-child td {{
+                border-bottom: none;
+            }}
+            tr:hover {{
+                background: #334155;
+            }}
+            .refresh {{
+                display: inline-block;
+                margin-bottom: 1rem;
+                padding: 0.5rem 1rem;
+                background: #3b82f6;
+                color: white;
+                text-decoration: none;
+                border-radius: 6px;
+                font-size: 0.9rem;
+            }}
+            .refresh:hover {{
+                background: #2563eb;
+            }}
+            .footer {{
+                margin-top: 2rem;
+                color: #64748b;
+                font-size: 0.85rem;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>Nakle Usage Dashboard</h1>
+        <a href="/usage/dashboard" class="refresh">Refresh</a>
+
+        <div class="cards">
+            <div class="card">
+                <div class="card-label">Total Requests</div>
+                <div class="card-value">{total_requests:,}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Tokens</div>
+                <div class="card-value">{total_tokens:,}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Cost</div>
+                <div class="card-value cost">${total_cost:.2f}</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Sources</div>
+                <div class="card-value">{len(stats)}</div>
+            </div>
+        </div>
+
+        <h2>Usage by Source</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Requests</th>
+                    <th>Input Tokens</th>
+                    <th>Output Tokens</th>
+                    <th>Total Tokens</th>
+                    <th>Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {source_rows if source_rows else '<tr><td colspan="6" style="text-align:center;color:#64748b;">No data yet</td></tr>'}
+            </tbody>
+        </table>
+
+        <h2>Recent Requests ({total_count} total)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time (UTC)</th>
+                    <th>Source</th>
+                    <th>Model</th>
+                    <th>Tokens</th>
+                    <th>Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {record_rows if record_rows else '<tr><td colspan="5" style="text-align:center;color:#64748b;">No requests yet</td></tr>'}
+            </tbody>
+        </table>
+
+        <div class="footer">
+            API: <a href="/usage" style="color:#3b82f6">/usage</a> |
+            <a href="/usage/stats" style="color:#3b82f6">/usage/stats</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
