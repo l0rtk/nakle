@@ -10,9 +10,10 @@ import json
 BASE_URL = "http://20.64.149.209/chat/completions"
 USAGE_URL = "http://20.64.149.209/usage"
 USAGE_STATS_URL = "http://20.64.149.209/usage/stats"
+TEST_SOURCE = "nakle-testing"
 
 
-def ask(prompt: str, source: str = None) -> dict:
+def ask(prompt: str, source: str = TEST_SOURCE) -> dict:
     """Send a prompt and return the full response."""
     payload = {
         "model": "haiku",
@@ -96,19 +97,16 @@ def test_streaming():
 
 
 def test_source_tracking():
-    """Test: Chat completion with source parameter records usage"""
-    import uuid
-    test_source = f"test-{uuid.uuid4().hex[:8]}"
-
-    # Make a request with custom source
-    response = ask("Say 'ok'", source=test_source)
+    """Test: Chat completion with source parameter records usage and cost"""
+    # Make a request with TEST_SOURCE
+    response = ask("Say 'ok'")
     assert "choices" in response, "Response should have choices"
     request_id = response["id"]
 
     # Check usage was recorded
     usage_response = requests.get(
         USAGE_URL,
-        params={"source": test_source},
+        params={"source": TEST_SOURCE},
         timeout=10
     )
     usage_response.raise_for_status()
@@ -120,11 +118,14 @@ def test_source_tracking():
     found = False
     for record in data["records"]:
         if record["request_id"] == request_id:
-            assert record["source"] == test_source
+            assert record["source"] == TEST_SOURCE
             assert record["model"] == "haiku"
             assert record["input_tokens"] > 0
             assert record["output_tokens"] > 0
+            assert "cost_usd" in record, "Record should have cost_usd"
+            assert record["cost_usd"] >= 0, "cost_usd should be >= 0"
             found = True
+            print(f"  → tokens: {record['input_tokens']}+{record['output_tokens']}, cost: ${record['cost_usd']:.4f}")
             break
 
     assert found, f"Could not find record with request_id={request_id}"
@@ -145,7 +146,7 @@ def test_usage_endpoint():
 
 
 def test_usage_stats_endpoint():
-    """Test: GET /usage/stats returns aggregated stats"""
+    """Test: GET /usage/stats returns aggregated stats with cost"""
     response = requests.get(USAGE_STATS_URL, timeout=10)
     response.raise_for_status()
     data = response.json()
@@ -161,6 +162,9 @@ def test_usage_stats_endpoint():
     assert "total_input_tokens" in gt
     assert "total_output_tokens" in gt
     assert "total_tokens" in gt
+    assert "total_cost_usd" in gt, "grand_total should have total_cost_usd"
+
+    print(f"  → total: {gt['total_requests']} requests, {gt['total_tokens']} tokens, ${gt['total_cost_usd']:.4f}")
     print("✓ test_usage_stats_endpoint passed")
 
 
