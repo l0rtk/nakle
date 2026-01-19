@@ -246,22 +246,59 @@ def get_usage_statistics(
 
 @app.get("/usage/dashboard", response_class=HTMLResponse)
 def usage_dashboard():
-    """Visual HTML dashboard for usage statistics."""
+    """Visual HTML dashboard for usage statistics - pixel aesthetic."""
     stats = get_usage_stats()
     records, total_count = get_usage_records(limit=20)
 
     # Calculate totals
     total_requests = sum(s["total_requests"] for s in stats)
+    total_input = sum(s["total_input_tokens"] for s in stats)
+    total_output = sum(s["total_output_tokens"] for s in stats)
     total_tokens = sum(s["total_tokens"] for s in stats)
     total_cost = sum(s["total_cost_usd"] or 0 for s in stats)
 
+    # Build pie chart SVG segments
+    colors = ["#00ff00", "#ff00ff", "#00ffff", "#ffff00", "#ff6600", "#ff0066", "#66ff00", "#0066ff"]
+    pie_segments = ""
+    legend_items = ""
+    if stats and total_tokens > 0:
+        cumulative = 0
+        for i, s in enumerate(stats):
+            tokens = s["total_tokens"]
+            percentage = (tokens / total_tokens) * 100
+            start_angle = cumulative * 3.6  # 360 / 100
+            end_angle = (cumulative + percentage) * 3.6
+            cumulative += percentage
+            color = colors[i % len(colors)]
+
+            # SVG arc calculation
+            large_arc = 1 if percentage > 50 else 0
+            start_rad = (start_angle - 90) * 3.14159 / 180
+            end_rad = (end_angle - 90) * 3.14159 / 180
+            x1 = 100 + 80 * round(cos_approx(start_rad), 4)
+            y1 = 100 + 80 * round(sin_approx(start_rad), 4)
+            x2 = 100 + 80 * round(cos_approx(end_rad), 4)
+            y2 = 100 + 80 * round(sin_approx(end_rad), 4)
+
+            if percentage >= 100:
+                pie_segments = f'<circle cx="100" cy="100" r="80" fill="{color}" />'
+            elif percentage > 0:
+                pie_segments += f'<path d="M100,100 L{x1},{y1} A80,80 0 {large_arc},1 {x2},{y2} Z" fill="{color}" />'
+
+            legend_items += f'''
+            <div class="legend-item">
+                <span class="legend-color" style="background:{color}"></span>
+                <span class="legend-text">{s['source']}: {percentage:.1f}%</span>
+            </div>'''
+
     # Build source rows
     source_rows = ""
-    for s in stats:
+    for i, s in enumerate(stats):
         cost = s["total_cost_usd"] or 0
+        color = colors[i % len(colors)]
         source_rows += f"""
         <tr>
-            <td><strong>{s['source']}</strong></td>
+            <td><span style="color:{color}">■</span> {s['source']}</td>
             <td>{s['total_requests']:,}</td>
             <td>{s['total_input_tokens']:,}</td>
             <td>{s['total_output_tokens']:,}</td>
@@ -287,159 +324,259 @@ def usage_dashboard():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Nakle Usage Dashboard</title>
+        <title>NAKLE // USAGE</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
         <style>
             * {{ box-sizing: border-box; margin: 0; padding: 0; }}
             body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: #0f172a;
-                color: #e2e8f0;
-                padding: 2rem;
+                font-family: 'Press Start 2P', monospace;
+                background: #000;
+                color: #0f0;
+                padding: 20px;
                 min-height: 100vh;
+                font-size: 10px;
+                line-height: 1.8;
+                image-rendering: pixelated;
             }}
             h1 {{
-                font-size: 1.8rem;
-                margin-bottom: 1.5rem;
-                color: #f8fafc;
+                font-size: 16px;
+                margin-bottom: 20px;
+                color: #0f0;
+                text-shadow: 2px 2px #030;
             }}
             h2 {{
-                font-size: 1.2rem;
-                margin: 2rem 0 1rem;
-                color: #94a3b8;
+                font-size: 12px;
+                margin: 30px 0 15px;
+                color: #0ff;
+                text-shadow: 1px 1px #033;
+            }}
+            .pixel-border {{
+                border: 4px solid #0f0;
+                box-shadow: 4px 4px 0 #030, inset 0 0 20px rgba(0,255,0,0.1);
+            }}
+            .dashboard-grid {{
+                display: grid;
+                grid-template-columns: 1fr 300px;
+                gap: 20px;
+                margin-bottom: 20px;
             }}
             .cards {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 1rem;
-                margin-bottom: 2rem;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 15px;
             }}
             .card {{
-                background: #1e293b;
-                border-radius: 12px;
-                padding: 1.5rem;
-                border: 1px solid #334155;
+                background: #000;
+                padding: 15px;
             }}
             .card-label {{
-                font-size: 0.85rem;
-                color: #94a3b8;
-                margin-bottom: 0.5rem;
+                font-size: 8px;
+                color: #0a0;
+                margin-bottom: 8px;
             }}
             .card-value {{
-                font-size: 2rem;
-                font-weight: 600;
-                color: #f8fafc;
+                font-size: 20px;
+                color: #0f0;
             }}
             .card-value.cost {{
-                color: #4ade80;
+                color: #ff0;
+            }}
+            .pie-container {{
+                background: #000;
+                padding: 15px;
+                text-align: center;
+            }}
+            .pie-chart {{
+                margin-bottom: 10px;
+            }}
+            .legend {{
+                text-align: left;
+            }}
+            .legend-item {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin: 5px 0;
+            }}
+            .legend-color {{
+                width: 12px;
+                height: 12px;
+                display: inline-block;
+            }}
+            .legend-text {{
+                font-size: 8px;
+                color: #ccc;
             }}
             table {{
                 width: 100%;
                 border-collapse: collapse;
-                background: #1e293b;
-                border-radius: 12px;
-                overflow: hidden;
-                border: 1px solid #334155;
+                background: #000;
             }}
             th, td {{
-                padding: 0.75rem 1rem;
+                padding: 10px 8px;
                 text-align: left;
-                border-bottom: 1px solid #334155;
+                border-bottom: 2px solid #030;
             }}
             th {{
-                background: #334155;
-                font-weight: 600;
-                color: #f8fafc;
-                font-size: 0.85rem;
+                background: #020;
+                color: #0ff;
+                font-size: 8px;
             }}
-            tr:last-child td {{
-                border-bottom: none;
+            td {{
+                font-size: 9px;
+                color: #0a0;
             }}
-            tr:hover {{
-                background: #334155;
+            tr:hover td {{
+                background: #010;
+                color: #0f0;
             }}
             .refresh {{
                 display: inline-block;
-                margin-bottom: 1rem;
-                padding: 0.5rem 1rem;
-                background: #3b82f6;
-                color: white;
+                margin-bottom: 20px;
+                padding: 10px 15px;
+                background: #000;
+                color: #0f0;
                 text-decoration: none;
-                border-radius: 6px;
-                font-size: 0.9rem;
+                border: 3px solid #0f0;
+                font-family: 'Press Start 2P', monospace;
+                font-size: 10px;
             }}
             .refresh:hover {{
-                background: #2563eb;
+                background: #0f0;
+                color: #000;
             }}
             .footer {{
-                margin-top: 2rem;
-                color: #64748b;
-                font-size: 0.85rem;
+                margin-top: 30px;
+                color: #060;
+                font-size: 8px;
+            }}
+            .footer a {{
+                color: #0ff;
+            }}
+            .blink {{
+                animation: blink 1s step-start infinite;
+            }}
+            @keyframes blink {{
+                50% {{ opacity: 0; }}
+            }}
+            .scanlines {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                background: repeating-linear-gradient(
+                    0deg,
+                    rgba(0,0,0,0.1) 0px,
+                    rgba(0,0,0,0.1) 1px,
+                    transparent 1px,
+                    transparent 2px
+                );
+                z-index: 9999;
             }}
         </style>
     </head>
     <body>
-        <h1>Nakle Usage Dashboard</h1>
-        <a href="/usage/dashboard" class="refresh">Refresh</a>
+        <div class="scanlines"></div>
+        <h1>> NAKLE USAGE_<span class="blink">█</span></h1>
+        <a href="/usage/dashboard" class="refresh">[REFRESH]</a>
 
-        <div class="cards">
-            <div class="card">
-                <div class="card-label">Total Requests</div>
-                <div class="card-value">{total_requests:,}</div>
+        <div class="dashboard-grid">
+            <div class="cards">
+                <div class="card pixel-border">
+                    <div class="card-label">REQUESTS</div>
+                    <div class="card-value">{total_requests:,}</div>
+                </div>
+                <div class="card pixel-border">
+                    <div class="card-label">INPUT TOKENS</div>
+                    <div class="card-value">{total_input:,}</div>
+                </div>
+                <div class="card pixel-border">
+                    <div class="card-label">OUTPUT TOKENS</div>
+                    <div class="card-value">{total_output:,}</div>
+                </div>
+                <div class="card pixel-border">
+                    <div class="card-label">TOTAL TOKENS</div>
+                    <div class="card-value">{total_tokens:,}</div>
+                </div>
+                <div class="card pixel-border">
+                    <div class="card-label">COST USD</div>
+                    <div class="card-value cost">${total_cost:.2f}</div>
+                </div>
+                <div class="card pixel-border">
+                    <div class="card-label">SOURCES</div>
+                    <div class="card-value">{len(stats)}</div>
+                </div>
             </div>
-            <div class="card">
-                <div class="card-label">Total Tokens</div>
-                <div class="card-value">{total_tokens:,}</div>
-            </div>
-            <div class="card">
-                <div class="card-label">Total Cost</div>
-                <div class="card-value cost">${total_cost:.2f}</div>
-            </div>
-            <div class="card">
-                <div class="card-label">Sources</div>
-                <div class="card-value">{len(stats)}</div>
+            <div class="pie-container pixel-border">
+                <div class="pie-chart">
+                    <svg width="200" height="200" viewBox="0 0 200 200">
+                        <circle cx="100" cy="100" r="80" fill="#111" stroke="#0f0" stroke-width="2"/>
+                        {pie_segments if pie_segments else '<text x="100" y="105" text-anchor="middle" fill="#0a0" font-size="10">NO DATA</text>'}
+                    </svg>
+                </div>
+                <div class="legend">
+                    {legend_items if legend_items else '<div class="legend-text">No sources yet</div>'}
+                </div>
             </div>
         </div>
 
-        <h2>Usage by Source</h2>
+        <h2>> USAGE BY SOURCE</h2>
+        <div class="pixel-border" style="overflow:hidden;">
         <table>
             <thead>
                 <tr>
-                    <th>Source</th>
-                    <th>Requests</th>
-                    <th>Input Tokens</th>
-                    <th>Output Tokens</th>
-                    <th>Total Tokens</th>
-                    <th>Cost</th>
+                    <th>SOURCE</th>
+                    <th>REQ</th>
+                    <th>IN</th>
+                    <th>OUT</th>
+                    <th>TOTAL</th>
+                    <th>$$$</th>
                 </tr>
             </thead>
             <tbody>
-                {source_rows if source_rows else '<tr><td colspan="6" style="text-align:center;color:#64748b;">No data yet</td></tr>'}
+                {source_rows if source_rows else '<tr><td colspan="6" style="text-align:center;color:#060;">AWAITING DATA...</td></tr>'}
             </tbody>
         </table>
+        </div>
 
-        <h2>Recent Requests ({total_count} total)</h2>
+        <h2>> RECENT [{total_count} TOTAL]</h2>
+        <div class="pixel-border" style="overflow:hidden;">
         <table>
             <thead>
                 <tr>
-                    <th>Time (UTC)</th>
-                    <th>Source</th>
-                    <th>Model</th>
-                    <th>Tokens</th>
-                    <th>Cost</th>
+                    <th>TIME</th>
+                    <th>SOURCE</th>
+                    <th>MODEL</th>
+                    <th>TOKENS</th>
+                    <th>$$$</th>
                 </tr>
             </thead>
             <tbody>
-                {record_rows if record_rows else '<tr><td colspan="5" style="text-align:center;color:#64748b;">No requests yet</td></tr>'}
+                {record_rows if record_rows else '<tr><td colspan="5" style="text-align:center;color:#060;">NO REQUESTS YET...</td></tr>'}
             </tbody>
         </table>
+        </div>
 
         <div class="footer">
-            API: <a href="/usage" style="color:#3b82f6">/usage</a> |
-            <a href="/usage/stats" style="color:#3b82f6">/usage/stats</a>
+            API: <a href="/usage">/usage</a> | <a href="/usage/stats">/usage/stats</a>
         </div>
     </body>
     </html>
     """
     return HTMLResponse(content=html)
+
+
+def cos_approx(x):
+    """Simple cosine approximation for SVG pie chart."""
+    import math
+    return math.cos(x)
+
+
+def sin_approx(x):
+    """Simple sine approximation for SVG pie chart."""
+    import math
+    return math.sin(x)
