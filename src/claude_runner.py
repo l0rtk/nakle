@@ -187,7 +187,8 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
                 "usage": response_data.get("usage", {
                     "input_tokens": 0,
                     "output_tokens": 0
-                })
+                }),
+                "cost_usd": response_data.get("total_cost_usd", 0.0)
             }
 
             # Include structured_output if present

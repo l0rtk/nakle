@@ -153,7 +153,8 @@ def chat_completions(request: ChatCompletionRequest):
             response.conversation_id = request.conversation_id
 
         usage = claude_response["usage"]
-        logger.info(f"Success | source={request.source} | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
+        cost_usd = claude_response.get("cost_usd", 0.0)
+        logger.info(f"Success | source={request.source} | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)} | cost=${cost_usd:.4f}")
 
         # Record usage for tracking
         record_usage(
@@ -162,7 +163,8 @@ def chat_completions(request: ChatCompletionRequest):
             input_tokens=usage.get('input_tokens', 0),
             output_tokens=usage.get('output_tokens', 0),
             request_id=response.id,
-            conversation_id=request.conversation_id
+            conversation_id=request.conversation_id,
+            cost_usd=cost_usd
         )
 
         return response
@@ -230,7 +232,8 @@ def get_usage_statistics(
         total_requests=sum(s.total_requests for s in summaries),
         total_input_tokens=sum(s.total_input_tokens for s in summaries),
         total_output_tokens=sum(s.total_output_tokens for s in summaries),
-        total_tokens=sum(s.total_tokens for s in summaries)
+        total_tokens=sum(s.total_tokens for s in summaries),
+        total_cost_usd=sum(s.total_cost_usd for s in summaries)
     )
 
     return UsageStatsResponse(
