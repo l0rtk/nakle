@@ -281,9 +281,9 @@ def usage_dashboard():
             y2 = 100 + 80 * round(sin_approx(end_rad), 4)
 
             if percentage >= 100:
-                pie_segments = f'<circle cx="100" cy="100" r="80" fill="{color}" />'
+                pie_segments = f'<circle cx="100" cy="100" r="80" fill="{color}"><title>{s["source"]}: {tokens:,} tokens ({percentage:.1f}%)</title></circle>'
             elif percentage > 0:
-                pie_segments += f'<path d="M100,100 L{x1},{y1} A80,80 0 {large_arc},1 {x2},{y2} Z" fill="{color}" />'
+                pie_segments += f'<path d="M100,100 L{x1},{y1} A80,80 0 {large_arc},1 {x2},{y2} Z" fill="{color}" style="cursor:pointer;"><title>{s["source"]}: {tokens:,} tokens ({percentage:.1f}%)</title></path>'
 
             legend_items += f'''
             <div class="legend-item">
@@ -333,7 +333,7 @@ def usage_dashboard():
             body {{
                 font-family: 'Press Start 2P', monospace;
                 background: #000;
-                color: #0f0;
+                color: #ccc;
                 padding: 20px;
                 min-height: 100vh;
                 font-size: 10px;
@@ -343,8 +343,8 @@ def usage_dashboard():
             h1 {{
                 font-size: 16px;
                 margin-bottom: 20px;
-                color: #0f0;
-                text-shadow: 2px 2px #030;
+                color: #fff;
+                text-shadow: 2px 2px #333;
             }}
             h2 {{
                 font-size: 12px;
@@ -353,8 +353,8 @@ def usage_dashboard():
                 text-shadow: 1px 1px #033;
             }}
             .pixel-border {{
-                border: 4px solid #0f0;
-                box-shadow: 4px 4px 0 #030, inset 0 0 20px rgba(0,255,0,0.1);
+                border: 4px solid #555;
+                box-shadow: 4px 4px 0 #222, inset 0 0 20px rgba(255,255,255,0.03);
             }}
             .dashboard-grid {{
                 display: grid;
@@ -373,15 +373,15 @@ def usage_dashboard():
             }}
             .card-label {{
                 font-size: 8px;
-                color: #0a0;
+                color: #888;
                 margin-bottom: 8px;
             }}
             .card-value {{
                 font-size: 20px;
-                color: #0f0;
+                color: #fff;
             }}
             .card-value.cost {{
-                color: #ff0;
+                color: #0ff;
             }}
             .pie-container {{
                 background: #000;
@@ -417,39 +417,39 @@ def usage_dashboard():
             th, td {{
                 padding: 10px 8px;
                 text-align: left;
-                border-bottom: 2px solid #030;
+                border-bottom: 2px solid #222;
             }}
             th {{
-                background: #020;
+                background: #111;
                 color: #0ff;
                 font-size: 8px;
             }}
             td {{
                 font-size: 9px;
-                color: #0a0;
+                color: #aaa;
             }}
             tr:hover td {{
-                background: #010;
-                color: #0f0;
+                background: #111;
+                color: #fff;
             }}
             .refresh {{
                 display: inline-block;
                 margin-bottom: 20px;
                 padding: 10px 15px;
                 background: #000;
-                color: #0f0;
+                color: #fff;
                 text-decoration: none;
-                border: 3px solid #0f0;
+                border: 3px solid #555;
                 font-family: 'Press Start 2P', monospace;
                 font-size: 10px;
             }}
             .refresh:hover {{
-                background: #0f0;
-                color: #000;
+                background: #333;
+                color: #fff;
             }}
             .footer {{
                 margin-top: 30px;
-                color: #060;
+                color: #555;
                 font-size: 8px;
             }}
             .footer a {{
@@ -514,8 +514,8 @@ def usage_dashboard():
             <div class="pie-container pixel-border">
                 <div class="pie-chart">
                     <svg width="200" height="200" viewBox="0 0 200 200">
-                        <circle cx="100" cy="100" r="80" fill="#111" stroke="#0f0" stroke-width="2"/>
-                        {pie_segments if pie_segments else '<text x="100" y="105" text-anchor="middle" fill="#0a0" font-size="10">NO DATA</text>'}
+                        <circle cx="100" cy="100" r="80" fill="#111" stroke="#444" stroke-width="2"/>
+                        {pie_segments if pie_segments else '<text x="100" y="105" text-anchor="middle" fill="#555" font-size="10">NO DATA</text>'}
                     </svg>
                 </div>
                 <div class="legend">
@@ -538,7 +538,7 @@ def usage_dashboard():
                 </tr>
             </thead>
             <tbody>
-                {source_rows if source_rows else '<tr><td colspan="6" style="text-align:center;color:#060;">AWAITING DATA...</td></tr>'}
+                {source_rows if source_rows else '<tr><td colspan="6" style="text-align:center;color:#555;">AWAITING DATA...</td></tr>'}
             </tbody>
         </table>
         </div>
@@ -556,7 +556,7 @@ def usage_dashboard():
                 </tr>
             </thead>
             <tbody>
-                {record_rows if record_rows else '<tr><td colspan="5" style="text-align:center;color:#060;">NO REQUESTS YET...</td></tr>'}
+                {record_rows if record_rows else '<tr><td colspan="5" style="text-align:center;color:#555;">NO REQUESTS YET...</td></tr>'}
             </tbody>
         </table>
         </div>
