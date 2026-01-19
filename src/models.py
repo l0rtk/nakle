@@ -101,6 +101,8 @@ class UsageRecord(BaseModel):
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
     cost_usd: float = 0.0
     conversation_id: Optional[str]
     request_id: str
@@ -112,6 +114,8 @@ class UsageSummary(BaseModel):
     total_input_tokens: int
     total_output_tokens: int
     total_tokens: int
+    total_cache_creation_tokens: int = 0
+    total_cache_read_tokens: int = 0
     total_cost_usd: float = 0.0
 
 

@@ -27,6 +27,8 @@ def init_db():
                 input_tokens INTEGER NOT NULL,
                 output_tokens INTEGER NOT NULL,
                 total_tokens INTEGER NOT NULL,
+                cache_creation_tokens INTEGER DEFAULT 0,
+                cache_read_tokens INTEGER DEFAULT 0,
                 cost_usd REAL DEFAULT 0,
                 conversation_id TEXT,
                 request_id TEXT NOT NULL
@@ -36,11 +38,15 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON usage_records(timestamp)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_source_timestamp ON usage_records(source, timestamp)")
 
-        # Migration: add cost_usd column if it doesn't exist
+        # Migration: add columns if they don't exist
         cursor = conn.execute("PRAGMA table_info(usage_records)")
         columns = [row[1] for row in cursor.fetchall()]
         if "cost_usd" not in columns:
             conn.execute("ALTER TABLE usage_records ADD COLUMN cost_usd REAL DEFAULT 0")
+        if "cache_creation_tokens" not in columns:
+            conn.execute("ALTER TABLE usage_records ADD COLUMN cache_creation_tokens INTEGER DEFAULT 0")
+        if "cache_read_tokens" not in columns:
+            conn.execute("ALTER TABLE usage_records ADD COLUMN cache_read_tokens INTEGER DEFAULT 0")
 
         conn.commit()
 
@@ -64,15 +70,17 @@ def record_usage(
     output_tokens: int,
     request_id: str,
     conversation_id: Optional[str] = None,
-    cost_usd: float = 0.0
+    cost_usd: float = 0.0,
+    cache_creation_tokens: int = 0,
+    cache_read_tokens: int = 0
 ):
     """Record a single usage event."""
     with get_connection() as conn:
         conn.execute(
             """
             INSERT INTO usage_records
-            (timestamp, source, model, input_tokens, output_tokens, total_tokens, cost_usd, conversation_id, request_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (timestamp, source, model, input_tokens, output_tokens, total_tokens, cache_creation_tokens, cache_read_tokens, cost_usd, conversation_id, request_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.now(timezone.utc).isoformat(),
@@ -81,6 +89,8 @@ def record_usage(
                 input_tokens,
                 output_tokens,
                 input_tokens + output_tokens,
+                cache_creation_tokens,
+                cache_read_tokens,
                 cost_usd,
                 conversation_id,
                 request_id
@@ -124,7 +134,8 @@ def get_usage_records(
         rows = conn.execute(
             f"""
             SELECT timestamp, source, model, input_tokens, output_tokens,
-                   total_tokens, cost_usd, conversation_id, request_id
+                   total_tokens, cache_creation_tokens, cache_read_tokens,
+                   cost_usd, conversation_id, request_id
             FROM usage_records
             WHERE {where_clause}
             ORDER BY timestamp DESC
@@ -167,6 +178,8 @@ def get_usage_stats(
                 SUM(input_tokens) as total_input_tokens,
                 SUM(output_tokens) as total_output_tokens,
                 SUM(total_tokens) as total_tokens,
+                SUM(cache_creation_tokens) as total_cache_creation_tokens,
+                SUM(cache_read_tokens) as total_cache_read_tokens,
                 SUM(cost_usd) as total_cost_usd
             FROM usage_records
             WHERE {where_clause}

@@ -181,13 +181,16 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             if conversation_id and session_id:
                 SESSION_STORE[conversation_id] = session_id
 
+            usage = response_data.get("usage", {})
             response = {
                 "result": response_data.get("result", ""),
                 "session_id": session_id,
-                "usage": response_data.get("usage", {
-                    "input_tokens": 0,
-                    "output_tokens": 0
-                }),
+                "usage": {
+                    "input_tokens": usage.get("input_tokens", 0),
+                    "output_tokens": usage.get("output_tokens", 0),
+                    "cache_creation_tokens": usage.get("cache_creation_input_tokens", 0),
+                    "cache_read_tokens": usage.get("cache_read_input_tokens", 0),
+                },
                 "cost_usd": response_data.get("total_cost_usd", 0.0)
             }
 

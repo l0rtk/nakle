@@ -164,7 +164,9 @@ def chat_completions(request: ChatCompletionRequest):
             output_tokens=usage.get('output_tokens', 0),
             request_id=response.id,
             conversation_id=request.conversation_id,
-            cost_usd=cost_usd
+            cost_usd=cost_usd,
+            cache_creation_tokens=usage.get('cache_creation_tokens', 0),
+            cache_read_tokens=usage.get('cache_read_tokens', 0)
         )
 
         return response
@@ -255,6 +257,8 @@ def usage_dashboard():
     total_input = sum(s["total_input_tokens"] for s in stats)
     total_output = sum(s["total_output_tokens"] for s in stats)
     total_tokens = sum(s["total_tokens"] for s in stats)
+    total_cache_create = sum(s.get("total_cache_creation_tokens") or 0 for s in stats)
+    total_cache_read = sum(s.get("total_cache_read_tokens") or 0 for s in stats)
     total_cost = sum(s["total_cost_usd"] or 0 for s in stats)
 
     # Build pie chart SVG segments
@@ -311,12 +315,15 @@ def usage_dashboard():
     for r in records:
         cost = r["cost_usd"] or 0
         ts = r["timestamp"][:19].replace("T", " ")
+        cache_create = r.get('cache_creation_tokens') or 0
+        cache_read = r.get('cache_read_tokens') or 0
         record_rows += f"""
         <tr>
             <td>{ts}</td>
             <td>{r['source']}</td>
             <td>{r['model']}</td>
             <td>{r['input_tokens']:,}+{r['output_tokens']:,}</td>
+            <td>{cache_create:,}+{cache_read:,}</td>
             <td>${cost:.4f}</td>
         </tr>"""
 
@@ -491,16 +498,16 @@ def usage_dashboard():
                     <div class="card-value">{total_requests:,}</div>
                 </div>
                 <div class="card pixel-border">
-                    <div class="card-label">INPUT TOKENS</div>
-                    <div class="card-value">{total_input:,}</div>
+                    <div class="card-label">IN+OUT</div>
+                    <div class="card-value">{total_input:,}+{total_output:,}</div>
                 </div>
                 <div class="card pixel-border">
-                    <div class="card-label">OUTPUT TOKENS</div>
-                    <div class="card-value">{total_output:,}</div>
+                    <div class="card-label">CACHE CREATE</div>
+                    <div class="card-value">{total_cache_create:,}</div>
                 </div>
                 <div class="card pixel-border">
-                    <div class="card-label">TOTAL TOKENS</div>
-                    <div class="card-value">{total_tokens:,}</div>
+                    <div class="card-label">CACHE READ</div>
+                    <div class="card-value">{total_cache_read:,}</div>
                 </div>
                 <div class="card pixel-border">
                     <div class="card-label">COST USD</div>
@@ -551,12 +558,13 @@ def usage_dashboard():
                     <th>TIME</th>
                     <th>SOURCE</th>
                     <th>MODEL</th>
-                    <th>TOKENS</th>
+                    <th>IN+OUT</th>
+                    <th>CACHE</th>
                     <th>$$$</th>
                 </tr>
             </thead>
             <tbody>
-                {record_rows if record_rows else '<tr><td colspan="5" style="text-align:center;color:#555;">NO REQUESTS YET...</td></tr>'}
+                {record_rows if record_rows else '<tr><td colspan="6" style="text-align:center;color:#555;">NO REQUESTS YET...</td></tr>'}
             </tbody>
         </table>
         </div>
