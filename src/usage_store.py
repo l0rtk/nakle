@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Tuple
 from contextlib import contextmanager
 from threading import Lock
@@ -66,7 +66,7 @@ def record_usage(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 source,
                 model,
                 input_tokens,

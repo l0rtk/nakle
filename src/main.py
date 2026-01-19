@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -21,18 +22,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize usage database on startup."""
+    init_db()
+    logger.info("Usage database initialized")
+    yield
+
+
 app = FastAPI(
     title="Nakle",
     description="API wrapper for Claude Code as a pure LLM",
     version="0.1.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-def startup_event():
-    """Initialize usage database on startup."""
-    init_db()
-    logger.info("Usage database initialized")
 
 
 @app.get("/health")
