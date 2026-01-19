@@ -38,6 +38,7 @@ class ChatCompletionRequest(BaseModel):
     timeout: Optional[int] = 300  # seconds, max 300
     response_format: Optional[ResponseFormat] = None
     stream: bool = False
+    source: str = "unknown"  # Track request origin for usage monitoring
 
 
 class Choice(BaseModel):
@@ -90,3 +91,35 @@ class ChatCompletionResponse(BaseModel):
             usage=usage,
             structured_output=structured_output,
         )
+
+
+# Usage tracking models
+class UsageRecord(BaseModel):
+    timestamp: str
+    source: str
+    model: str
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    conversation_id: Optional[str]
+    request_id: str
+
+
+class UsageSummary(BaseModel):
+    source: str
+    total_requests: int
+    total_input_tokens: int
+    total_output_tokens: int
+    total_tokens: int
+
+
+class UsageResponse(BaseModel):
+    records: List[UsageRecord]
+    total_count: int
+
+
+class UsageStatsResponse(BaseModel):
+    summaries: List[UsageSummary]
+    grand_total: UsageSummary
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None

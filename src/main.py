@@ -2,10 +2,14 @@ import logging
 import json
 import os
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from .models import ChatCompletionRequest, ChatCompletionResponse
+from .models import (
+    ChatCompletionRequest, ChatCompletionResponse,
+    UsageResponse, UsageStatsResponse, UsageSummary, UsageRecord
+)
 from .claude_runner import run_claude, run_claude_stream, ClaudeError, ClaudeTimeoutError, ClaudeAuthError
+from .usage_store import init_db, record_usage, get_usage_records, get_usage_stats
 
 CREDENTIALS_PATH = os.path.expanduser("~/.claude/.credentials.json")
 
@@ -22,6 +26,13 @@ app = FastAPI(
     description="API wrapper for Claude Code as a pure LLM",
     version="0.1.0",
 )
+
+
+@app.on_event("startup")
+def startup_event():
+    """Initialize usage database on startup."""
+    init_db()
+    logger.info("Usage database initialized")
 
 
 @app.get("/health")
@@ -97,10 +108,11 @@ def chat_completions(request: ChatCompletionRequest):
         text_parts = [p.text for p in last_content if hasattr(p, "text")]
         prompt_text = " ".join(text_parts) if text_parts else "[image]"
         prompt_preview = prompt_text[:50] + "..." if len(prompt_text) > 50 else prompt_text
-    logger.info(f"Request | model={request.model} | stream={request.stream} | prompt=\"{prompt_preview}\"")
+    logger.info(f"Request | model={request.model} | source={request.source} | stream={request.stream} | prompt=\"{prompt_preview}\"")
 
     # Handle streaming request
     if request.stream:
+        logger.warning(f"Usage tracking not available for streaming requests (source={request.source})")
         try:
             return StreamingResponse(
                 run_claude_stream(request.messages, request.model, request.conversation_id),
@@ -137,7 +149,17 @@ def chat_completions(request: ChatCompletionRequest):
             response.conversation_id = request.conversation_id
 
         usage = claude_response["usage"]
-        logger.info(f"Success | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
+        logger.info(f"Success | source={request.source} | tokens={usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)}")
+
+        # Record usage for tracking
+        record_usage(
+            source=request.source,
+            model=request.model,
+            input_tokens=usage.get('input_tokens', 0),
+            output_tokens=usage.get('output_tokens', 0),
+            request_id=response.id,
+            conversation_id=request.conversation_id
+        )
 
         return response
 
@@ -163,3 +185,53 @@ def chat_completions(request: ChatCompletionRequest):
     except ClaudeError as e:
         logger.error(f"Error | {e}")
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/usage", response_model=UsageResponse)
+def get_usage(
+    source: str = Query(None, description="Filter by source"),
+    start: str = Query(None, description="Start time (ISO 8601)"),
+    end: str = Query(None, description="End time (ISO 8601)"),
+    limit: int = Query(100, ge=1, le=1000, description="Max records to return"),
+    offset: int = Query(0, ge=0, description="Number of records to skip")
+):
+    """Get usage records with optional filters."""
+    records, total_count = get_usage_records(
+        source=source,
+        start_time=start,
+        end_time=end,
+        limit=limit,
+        offset=offset
+    )
+    return UsageResponse(
+        records=[UsageRecord(**r) for r in records],
+        total_count=total_count
+    )
+
+
+@app.get("/usage/stats", response_model=UsageStatsResponse)
+def get_usage_statistics(
+    source: str = Query(None, description="Filter by source"),
+    start: str = Query(None, description="Start time (ISO 8601)"),
+    end: str = Query(None, description="End time (ISO 8601)")
+):
+    """Get aggregated usage statistics grouped by source."""
+    stats = get_usage_stats(source=source, start_time=start, end_time=end)
+
+    summaries = [UsageSummary(**s) for s in stats]
+
+    # Calculate grand total
+    grand_total = UsageSummary(
+        source="all",
+        total_requests=sum(s.total_requests for s in summaries),
+        total_input_tokens=sum(s.total_input_tokens for s in summaries),
+        total_output_tokens=sum(s.total_output_tokens for s in summaries),
+        total_tokens=sum(s.total_tokens for s in summaries)
+    )
+
+    return UsageStatsResponse(
+        summaries=summaries,
+        grand_total=grand_total,
+        period_start=start,
+        period_end=end
+    )

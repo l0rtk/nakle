@@ -17,6 +17,8 @@ services:
       - /home/azureuser/.claude:/root/.claude
       # For local testing, comment line above and uncomment below:
       # - /home/luka/.claude:/root/.claude
+      # Usage tracking database
+      - /home/azureuser/nakle-data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
