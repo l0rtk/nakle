@@ -4,11 +4,11 @@ REST API wrapper for Claude Code headless mode as a pure LLM API (no codebase co
 
 ## Features
 
-- ✅ Auto-approved search tools (Read, Grep, Glob, WebSearch)
-- ✅ Real token usage tracking
-- ✅ Multi-turn conversation support with session management
-- ✅ OpenAI-compatible API format
-- ✅ Docker support
+-  Auto-approved search tools (Read, Grep, Glob, WebSearch)
+-  Real token usage tracking
+-  Multi-turn conversation support with session management
+-  OpenAI-compatible API format
+-  Docker support
 
 ## Quick Start
 
