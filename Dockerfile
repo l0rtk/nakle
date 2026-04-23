@@ -9,9 +9,8 @@ RUN apt-get update && apt-get install -y curl && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy Claude CLI binary from build context
-COPY claude /usr/local/bin/claude
-RUN chmod 755 /usr/local/bin/claude
+# Install Claude CLI from npm (latest)
+RUN npm install -g @anthropic-ai/claude-code
 
 # Copy dependency files
 COPY pyproject.toml ./

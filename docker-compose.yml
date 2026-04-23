@@ -4,8 +4,6 @@ services:
   nakle:
     build:
       context: .
-      args:
-        - CLAUDE_PATH=${HOME}/.local/bin/claude
     ports:
       - "80:8000"
       - "8080:8080"  # OAuth callback port for /login
