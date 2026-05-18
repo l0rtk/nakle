@@ -3,13 +3,15 @@
 Integration tests for the Nakle API.
 """
 
+import os
 import requests
 import sys
 import json
 
-BASE_URL = "http://20.64.149.209/chat/completions"
-USAGE_URL = "http://20.64.149.209/usage"
-USAGE_STATS_URL = "http://20.64.149.209/usage/stats"
+NAKLE_HOST = os.environ.get("NAKLE_URL", "http://20.64.149.209").rstrip("/")
+BASE_URL = f"{NAKLE_HOST}/chat/completions"
+USAGE_URL = f"{NAKLE_HOST}/usage"
+USAGE_STATS_URL = f"{NAKLE_HOST}/usage/stats"
 TEST_SOURCE = "nakle-testing"
 
 
@@ -182,6 +184,128 @@ def test_usage_pagination():
     print("✓ test_usage_pagination passed")
 
 
+def test_allowed_tools_empty():
+    """Test: allowed_tools=[] works and the request returns successfully."""
+    payload = {
+        "model": "haiku",
+        "system": "You are an echo bot. Repeat back the user's message verbatim, with no other text.",
+        "messages": [{"role": "user", "content": "NOTOOLS_OK"}],
+        "allowed_tools": [],
+        "source": TEST_SOURCE,
+    }
+    response = requests.post(BASE_URL, json=payload, timeout=60)
+    response.raise_for_status()
+    content = response.json()["choices"][0]["message"]["content"]
+    assert "NOTOOLS_OK" in content, f"Expected 'NOTOOLS_OK', got '{content}'"
+    print("✓ test_allowed_tools_empty passed")
+
+
+def test_top_level_system_field():
+    """Test: top-level system field replaces the default agent prompt."""
+    payload = {
+        "model": "haiku",
+        "system": "You are PIRATEBOT. Every reply must start with 'Arrr!' and contain the word 'matey'.",
+        "messages": [{"role": "user", "content": "Say hi"}],
+        "allowed_tools": [],
+        "source": TEST_SOURCE,
+    }
+    response = requests.post(BASE_URL, json=payload, timeout=60)
+    response.raise_for_status()
+    content = response.json()["choices"][0]["message"]["content"].lower()
+    assert "arrr" in content, f"Expected 'arrr' in response, got '{content}'"
+    assert "matey" in content, f"Expected 'matey' in response, got '{content}'"
+    print("✓ test_top_level_system_field passed")
+
+
+def test_top_level_system_wins_over_message():
+    """Test: top-level system overrides any role:system messages."""
+    payload = {
+        "model": "haiku",
+        "system": "You are an echo bot. Repeat the user's message verbatim, nothing else.",
+        "messages": [
+            {"role": "system", "content": "You are a poetry bot. Always reply with a haiku about cats."},
+            {"role": "user", "content": "TOPLEVEL_WINS"},
+        ],
+        "allowed_tools": [],
+        "source": TEST_SOURCE,
+    }
+    response = requests.post(BASE_URL, json=payload, timeout=60)
+    response.raise_for_status()
+    content = response.json()["choices"][0]["message"]["content"].lower()
+    assert "toplevel_wins" in content, f"top-level system not followed: '{content}'"
+    assert "cat" not in content, f"role:system message leaked through: '{content}'"
+    print("✓ test_top_level_system_wins_over_message passed")
+
+
+def _collect_stream_events(payload, timeout=90):
+    """Collect all SSE event dicts (excluding [DONE]) from a streaming request."""
+    response = requests.post(BASE_URL, json=payload, stream=True, timeout=timeout)
+    response.raise_for_status()
+    events = []
+    for line in response.iter_lines():
+        if not line:
+            continue
+        line = line.decode()
+        if not line.startswith("data: "):
+            continue
+        data = line[6:]
+        if data == "[DONE]":
+            continue
+        events.append(json.loads(data))
+    return events
+
+
+def test_extended_events_off_by_default():
+    """Test: streaming without extended_events emits only OpenAI-shaped deltas."""
+    payload = {
+        "model": "haiku",
+        "system": "Reply with exactly: STREAM_OK",
+        "messages": [{"role": "user", "content": "go"}],
+        "allowed_tools": [],
+        "stream": True,
+        "source": TEST_SOURCE,
+    }
+    events = _collect_stream_events(payload)
+    assert len(events) > 0, "Expected at least one event"
+    for ev in events:
+        assert "choices" in ev, f"Found non-OpenAI event when extended_events is off: {ev}"
+        assert "type" not in ev, f"Found typed event when extended_events is off: {ev}"
+    print("✓ test_extended_events_off_by_default passed")
+
+
+def test_extended_events_emits_tool_use_and_result():
+    """Test: extended_events=true surfaces thinking, tool_use, tool_result events."""
+    payload = {
+        "model": "haiku",
+        "system": "You MUST use WebSearch to answer the user's question. Then reply in one sentence.",
+        "messages": [{"role": "user", "content": "What year was the Python programming language first released?"}],
+        "allowed_tools": ["WebSearch"],
+        "stream": True,
+        "extended_events": True,
+        "source": TEST_SOURCE,
+    }
+    events = _collect_stream_events(payload, timeout=120)
+    types_seen = {ev.get("type") for ev in events if "type" in ev}
+    has_openai_text = any("choices" in ev for ev in events)
+
+    assert "tool_use" in types_seen, f"Expected 'tool_use' event, saw types: {types_seen}"
+    assert "tool_result" in types_seen, f"Expected 'tool_result' event, saw types: {types_seen}"
+    assert has_openai_text, "Expected OpenAI-shaped text deltas alongside extended events"
+
+    # Validate tool_use payload shape
+    tool_use_events = [ev for ev in events if ev.get("type") == "tool_use"]
+    assert tool_use_events[0]["tool"], "tool_use event missing 'tool' name"
+    assert "input" in tool_use_events[0], "tool_use event missing 'input'"
+
+    # Validate tool_result payload shape
+    tool_result_events = [ev for ev in events if ev.get("type") == "tool_result"]
+    assert "summary" in tool_result_events[0], "tool_result event missing 'summary'"
+    assert "is_error" in tool_result_events[0], "tool_result event missing 'is_error'"
+
+    print(f"  → event types: {sorted(types_seen)}")
+    print("✓ test_extended_events_emits_tool_use_and_result passed")
+
+
 def main():
     tests = [
         test_addition,
@@ -192,6 +316,11 @@ def main():
         test_usage_endpoint,
         test_usage_stats_endpoint,
         test_usage_pagination,
+        test_allowed_tools_empty,
+        test_top_level_system_field,
+        test_top_level_system_wins_over_message,
+        test_extended_events_off_by_default,
+        test_extended_events_emits_tool_use_and_result,
         test_source_tracking,  # Last because it makes a request
     ]
     passed = 0
