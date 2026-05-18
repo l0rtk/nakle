@@ -245,11 +245,37 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         raise ClaudeTimeoutError(f"Request timed out after {effective_timeout}s")
 
 
-def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None, system: Optional[str] = None) -> Generator[str, None, None]:
+TOOL_RESULT_SUMMARY_CHARS = 240
+
+
+def _summarize_tool_result(content) -> str:
+    """Flatten a tool_result content payload into a short string for UI display."""
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text":
+                    parts.append(part.get("text", ""))
+                else:
+                    parts.append(f"[{part.get('type', 'block')}]")
+        text = " ".join(parts)
+    else:
+        text = str(content)
+    text = text.strip().replace("\n", " ")
+    if len(text) > TOOL_RESULT_SUMMARY_CHARS:
+        text = text[:TOOL_RESULT_SUMMARY_CHARS] + "..."
+    return text
+
+
+def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None, system: Optional[str] = None, extended_events: bool = False) -> Generator[str, None, None]:
     """
     Run Claude Code in headless mode with streaming output.
 
-    Yields SSE-formatted events.
+    Yields SSE-formatted events. When extended_events is True, additionally
+    emits thinking / tool_use / tool_result event types alongside the
+    OpenAI-shaped text deltas.
     """
     prompt, image_paths, extracted_system = format_messages(messages, extract_system=system is not None)
     effective_system = system if system is not None else extracted_system
@@ -302,7 +328,8 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
 
                     if inner_type == "content_block_delta":
                         delta = inner_event.get("delta", {})
-                        if delta.get("type") == "text_delta":
+                        delta_type = delta.get("type")
+                        if delta_type == "text_delta":
                             text = delta.get("text", "")
                             if text:
                                 sse_data = json.dumps({
@@ -312,6 +339,40 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
                                     }]
                                 })
                                 yield f"data: {sse_data}\n\n"
+                        elif extended_events and delta_type == "thinking_delta":
+                            text = delta.get("thinking", "")
+                            if text:
+                                yield f"data: {json.dumps({'type': 'thinking', 'content': text})}\n\n"
+
+                # Assembled assistant turn — has complete tool_use blocks
+                elif extended_events and event_type == "assistant":
+                    msg = event.get("message", {})
+                    for block in msg.get("content", []):
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") == "tool_use":
+                            payload = {
+                                "type": "tool_use",
+                                "id": block.get("id", ""),
+                                "tool": block.get("name", ""),
+                                "input": block.get("input", {}),
+                            }
+                            yield f"data: {json.dumps(payload)}\n\n"
+
+                # Tool results come back as user-role messages
+                elif extended_events and event_type == "user":
+                    msg = event.get("message", {})
+                    for block in msg.get("content", []):
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") == "tool_result":
+                            payload = {
+                                "type": "tool_result",
+                                "tool_use_id": block.get("tool_use_id", ""),
+                                "is_error": block.get("is_error", False),
+                                "summary": _summarize_tool_result(block.get("content", "")),
+                            }
+                            yield f"data: {json.dumps(payload)}\n\n"
 
                 # Handle result event (final)
                 elif event_type == "result":

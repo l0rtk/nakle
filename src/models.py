@@ -45,6 +45,11 @@ class ChatCompletionRequest(BaseModel):
     # replaces Claude Code's default agent system prompt. Wins over any
     # role:"system" entries in messages.
     system: Optional[str] = None
+    # When true (streaming only), emits extra SSE event types alongside the
+    # OpenAI-shaped text deltas: {"type": "thinking"|"tool_use"|"tool_result"}.
+    # Lets clients show "AI is searching the web for X" instead of a spinner.
+    # Off by default — OpenAI SDK clients may not tolerate unknown event shapes.
+    extended_events: bool = False
 
 
 class Choice(BaseModel):
