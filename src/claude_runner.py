@@ -83,10 +83,17 @@ def extract_content_and_images(content) -> Tuple[str, List[str]]:
     return " ".join(text_parts), image_paths
 
 
-def format_messages(messages: List[ChatMessage]) -> Tuple[str, List[str]]:
-    """Convert messages list to a single prompt string and collect image paths."""
+def format_messages(messages: List[ChatMessage], extract_system: bool = False) -> Tuple[str, List[str], Optional[str]]:
+    """Convert messages list to a single prompt string and collect image paths.
+
+    If extract_system is True, system-role messages are pulled out of the
+    inline prompt and returned as the third tuple element (joined with
+    double-newlines if multiple). Otherwise they're kept inline as
+    "System: ..." for backward compatibility.
+    """
     parts = []
     all_image_paths = []
+    system_parts = []
 
     for msg in messages:
         text_content, image_paths = extract_content_and_images(msg.content)
@@ -98,14 +105,18 @@ def format_messages(messages: List[ChatMessage]) -> Tuple[str, List[str]]:
             text_content = f"{text_content}\n{image_refs}"
 
         if msg.role == "system":
-            parts.append(f"System: {text_content}")
+            if extract_system:
+                system_parts.append(text_content)
+            else:
+                parts.append(f"System: {text_content}")
         elif msg.role == "user":
             parts.append(f"User: {text_content}")
         elif msg.role == "assistant":
             parts.append(f"Assistant: {text_content}")
 
     parts.append("Assistant:")
-    return "\n\n".join(parts), all_image_paths
+    system_prompt = "\n\n".join(system_parts) if system_parts else None
+    return "\n\n".join(parts), all_image_paths, system_prompt
 
 
 DEFAULT_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "WebSearch"]
@@ -125,7 +136,7 @@ def _tools_args(allowed_tools: Optional[List[str]]) -> List[str]:
     return ["--allowedTools", ",".join(allowed_tools)]
 
 
-def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None, json_schema: Optional[Dict[str, Any]] = None, allowed_tools: Optional[List[str]] = None) -> Dict[str, Any]:
+def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None, json_schema: Optional[Dict[str, Any]] = None, allowed_tools: Optional[List[str]] = None, system: Optional[str] = None) -> Dict[str, Any]:
     """
     Run Claude Code in headless mode with no context.
 
@@ -136,6 +147,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         timeout: Request timeout in seconds (default: DEFAULT_TIMEOUT, max: MAX_TIMEOUT)
         json_schema: Optional JSON schema for structured output
         allowed_tools: Tool restriction (None=default, []=none, list=exact set)
+        system: Top-level system prompt. Wins over role:"system" messages.
 
     Returns:
         Dict with keys: result (str), session_id (str), usage (dict), structured_output (optional)
@@ -144,7 +156,8 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         ClaudeError: If Claude returns an error
         ClaudeTimeoutError: If the request times out
     """
-    prompt, image_paths = format_messages(messages)
+    prompt, image_paths, extracted_system = format_messages(messages, extract_system=system is not None)
+    effective_system = system if system is not None else extracted_system
     effective_timeout = min(timeout or DEFAULT_TIMEOUT, MAX_TIMEOUT)
 
     cmd = [
@@ -154,6 +167,8 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         "--model", model,
         *_tools_args(allowed_tools),
     ]
+    if effective_system:
+        cmd.extend(["--system-prompt", effective_system])
 
     # Add JSON schema if provided
     if json_schema:
@@ -230,13 +245,14 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         raise ClaudeTimeoutError(f"Request timed out after {effective_timeout}s")
 
 
-def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None) -> Generator[str, None, None]:
+def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None, system: Optional[str] = None) -> Generator[str, None, None]:
     """
     Run Claude Code in headless mode with streaming output.
 
     Yields SSE-formatted events.
     """
-    prompt, image_paths = format_messages(messages)
+    prompt, image_paths, extracted_system = format_messages(messages, extract_system=system is not None)
+    effective_system = system if system is not None else extracted_system
 
     cmd = [
         "claude",
@@ -247,6 +263,8 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
         "--model", model,
         *_tools_args(allowed_tools),
     ]
+    if effective_system:
+        cmd.extend(["--system-prompt", effective_system])
 
     # Resume existing session if conversation_id exists
     if conversation_id and conversation_id in SESSION_STORE:

@@ -41,6 +41,10 @@ class ChatCompletionRequest(BaseModel):
     source: str = "unknown"  # Track request origin for usage monitoring
     # None = current default (Read,Grep,Glob,WebSearch). [] = no tools. List = exact set.
     allowed_tools: Optional[List[str]] = None
+    # Top-level system prompt (Anthropic/OpenAI convention). When set, fully
+    # replaces Claude Code's default agent system prompt. Wins over any
+    # role:"system" entries in messages.
+    system: Optional[str] = None
 
 
 class Choice(BaseModel):

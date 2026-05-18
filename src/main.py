@@ -119,7 +119,7 @@ def chat_completions(request: ChatCompletionRequest):
         logger.warning(f"Usage tracking not available for streaming requests (source={request.source})")
         try:
             return StreamingResponse(
-                run_claude_stream(request.messages, request.model, request.conversation_id, allowed_tools=request.allowed_tools),
+                run_claude_stream(request.messages, request.model, request.conversation_id, allowed_tools=request.allowed_tools, system=request.system),
                 media_type="text/event-stream"
             )
         except ClaudeError as e:
@@ -139,6 +139,7 @@ def chat_completions(request: ChatCompletionRequest):
             request.timeout,
             json_schema,
             allowed_tools=request.allowed_tools,
+            system=request.system,
         )
 
         response = ChatCompletionResponse.create(
