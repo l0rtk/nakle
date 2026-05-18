@@ -39,6 +39,8 @@ class ChatCompletionRequest(BaseModel):
     response_format: Optional[ResponseFormat] = None
     stream: bool = False
     source: str = "unknown"  # Track request origin for usage monitoring
+    # None = current default (Read,Grep,Glob,WebSearch). [] = no tools. List = exact set.
+    allowed_tools: Optional[List[str]] = None
 
 
 class Choice(BaseModel):

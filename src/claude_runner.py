@@ -108,7 +108,24 @@ def format_messages(messages: List[ChatMessage]) -> Tuple[str, List[str]]:
     return "\n\n".join(parts), all_image_paths
 
 
-def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None, json_schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+DEFAULT_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "WebSearch"]
+
+
+def _tools_args(allowed_tools: Optional[List[str]]) -> List[str]:
+    """Build CLI args for tool restriction.
+
+    None  -> current default (Read,Grep,Glob,WebSearch)
+    []    -> no tools (uses --tools "" to disable everything)
+    list  -> exactly those tools
+    """
+    if allowed_tools is None:
+        return ["--allowedTools", ",".join(DEFAULT_ALLOWED_TOOLS)]
+    if len(allowed_tools) == 0:
+        return ["--tools", ""]
+    return ["--allowedTools", ",".join(allowed_tools)]
+
+
+def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, timeout: Optional[int] = None, json_schema: Optional[Dict[str, Any]] = None, allowed_tools: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Run Claude Code in headless mode with no context.
 
@@ -118,6 +135,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         conversation_id: Optional conversation ID for multi-turn support
         timeout: Request timeout in seconds (default: DEFAULT_TIMEOUT, max: MAX_TIMEOUT)
         json_schema: Optional JSON schema for structured output
+        allowed_tools: Tool restriction (None=default, []=none, list=exact set)
 
     Returns:
         Dict with keys: result (str), session_id (str), usage (dict), structured_output (optional)
@@ -134,7 +152,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         "-p", "-",  # Read from stdin instead of argument
         "--output-format", "json",
         "--model", model,
-        "--allowedTools", "Read,Grep,Glob,WebSearch",
+        *_tools_args(allowed_tools),
     ]
 
     # Add JSON schema if provided
@@ -212,7 +230,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         raise ClaudeTimeoutError(f"Request timed out after {effective_timeout}s")
 
 
-def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None) -> Generator[str, None, None]:
+def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None) -> Generator[str, None, None]:
     """
     Run Claude Code in headless mode with streaming output.
 
@@ -227,7 +245,7 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
         "--verbose",
         "--include-partial-messages",  # Enable real token streaming
         "--model", model,
-        "--allowedTools", "Read,Grep,Glob,WebSearch",
+        *_tools_args(allowed_tools),
     ]
 
     # Resume existing session if conversation_id exists
