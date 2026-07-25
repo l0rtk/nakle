@@ -1,5 +1,6 @@
 from typing import List, Literal, Optional, Dict, Any, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+import re
 import uuid
 import time
 
@@ -31,9 +32,27 @@ class ResponseFormat(BaseModel):
     json_schema: Optional[Dict[str, Any]] = None
 
 
+# CLI tier aliases (resolved by the Claude CLI itself) — plus any FULL model
+# id ("claude-sonnet-5", "claude-opus-4-8", "claude-fable-5",
+# "claude-haiku-4-5-20251001", ...) passes straight through to `--model`, so
+# picking a new model never needs a gateway redeploy. Anything else 422s.
+MODEL_ALIASES = {"sonnet", "opus", "haiku", "fable"}
+_FULL_MODEL_RE = re.compile(r"^claude-[a-z0-9][a-z0-9.-]*$")
+
+
 class ChatCompletionRequest(BaseModel):
-    model: Literal["sonnet", "opus", "haiku"] = "sonnet"
+    model: str = "sonnet"
     messages: List[ChatMessage]
+
+    @field_validator("model")
+    @classmethod
+    def _model_alias_or_full_id(cls, v: str) -> str:
+        if v in MODEL_ALIASES or _FULL_MODEL_RE.match(v):
+            return v
+        raise ValueError(
+            f"model {v!r} is neither a tier alias "
+            f"({', '.join(sorted(MODEL_ALIASES))}) nor a full claude-* "
+            f"model id")
     conversation_id: Optional[str] = None
     timeout: Optional[int] = 300  # seconds, max 300
     response_format: Optional[ResponseFormat] = None
