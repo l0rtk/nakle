@@ -278,13 +278,17 @@ def _summarize_tool_result(content) -> str:
     return text
 
 
-def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None, system: Optional[str] = None, extended_events: bool = False) -> Generator[str, None, None]:
+def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conversation_id: Optional[str] = None, allowed_tools: Optional[List[str]] = None, system: Optional[str] = None, extended_events: bool = False, source: str = "unknown") -> Generator[str, None, None]:
     """
     Run Claude Code in headless mode with streaming output.
 
     Yields SSE-formatted events. When extended_events is True, additionally
     emits thinking / tool_use / tool_result event types alongside the
     OpenAI-shaped text deltas.
+
+    Usage IS tracked here: the CLI's final `result` event carries the same
+    usage/cost block the non-streaming path records — streaming clients
+    (every agent) used to be invisible in the /usage ledger.
     """
     prompt, image_paths, extracted_system = format_messages(messages, extract_system=system is not None)
     effective_system = system if system is not None else extracted_system
@@ -388,6 +392,27 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
                     session_id = event.get("session_id", "")
                     if conversation_id and session_id:
                         SESSION_STORE[conversation_id] = session_id
+                    # Record usage — recording failure must never kill a
+                    # stream that already delivered its answer.
+                    try:
+                        import uuid as _uuid
+                        from .usage_store import record_usage
+                        usage = event.get("usage") or {}
+                        record_usage(
+                            source=source,
+                            model=model,
+                            input_tokens=usage.get("input_tokens", 0),
+                            output_tokens=usage.get("output_tokens", 0),
+                            request_id=f"chatcmpl-{_uuid.uuid4().hex[:12]}",
+                            conversation_id=conversation_id,
+                            cost_usd=event.get("total_cost_usd", 0.0),
+                            cache_creation_tokens=usage.get(
+                                "cache_creation_input_tokens", 0),
+                            cache_read_tokens=usage.get(
+                                "cache_read_input_tokens", 0),
+                        )
+                    except Exception:
+                        pass
 
             except json.JSONDecodeError:
                 continue
