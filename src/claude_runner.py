@@ -122,13 +122,22 @@ def format_messages(messages: List[ChatMessage], extract_system: bool = False) -
 DEFAULT_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "WebSearch"]
 
 
-def _tools_args(allowed_tools: Optional[List[str]]) -> List[str]:
+def _tools_args(allowed_tools: Optional[List[str]], have_images: bool = False) -> List[str]:
     """Build CLI args for tool restriction.
 
     None  -> current default (Read,Grep,Glob,WebSearch)
     []    -> no tools (uses --tools "" to disable everything)
     list  -> exactly those tools
+
+    have_images: the request carries image attachments, which the CLI can
+    only view through its Read tool. A client that disables tools (or allows
+    a set without Read) would otherwise have its images ACCEPTED by the
+    schema, saved to /tmp, referenced in the prompt — and silently invisible
+    to the model ("NO IMAGE RECEIVED"). Images are an explicit ask, so Read
+    is force-included for exactly those requests.
     """
+    if have_images and allowed_tools is not None and "Read" not in allowed_tools:
+        allowed_tools = [*allowed_tools, "Read"]
     if allowed_tools is None:
         return ["--allowedTools", ",".join(DEFAULT_ALLOWED_TOOLS)]
     if len(allowed_tools) == 0:
@@ -165,7 +174,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
         "-p", "-",  # Read from stdin instead of argument
         "--output-format", "json",
         "--model", model,
-        *_tools_args(allowed_tools),
+        *_tools_args(allowed_tools, have_images=bool(image_paths)),
     ]
     if effective_system:
         cmd.extend(["--system-prompt", effective_system])
@@ -287,7 +296,7 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
         "--verbose",
         "--include-partial-messages",  # Enable real token streaming
         "--model", model,
-        *_tools_args(allowed_tools),
+        *_tools_args(allowed_tools, have_images=bool(image_paths)),
     ]
     if effective_system:
         cmd.extend(["--system-prompt", effective_system])
