@@ -119,6 +119,29 @@ def format_messages(messages: List[ChatMessage], extract_system: bool = False) -
     return "\n\n".join(parts), all_image_paths, system_prompt
 
 
+# --- clean-room workspaces -------------------------------------------------
+# The CLI keys its auto-memory (and CLAUDE.md discovery) on the CWD's project
+# slug. Running every request in the shared /tmp gave ALL of them one slug —
+# and one conversation's auto-memory ("stirrup close zone 1500mm … Do not
+# change") leaked into every later agent turn as an authoritative-sounding
+# system-reminder. A FRESH directory per request has no past: nothing to
+# load, nothing to inherit. Requests that resume a conversation reuse that
+# conversation's directory (the CLI's --resume finds sessions by project).
+
+_WS_BASE = "/tmp/nakle-ws"
+
+
+def _workspace(conversation_id: Optional[str]) -> str:
+    os.makedirs(_WS_BASE, exist_ok=True)
+    if conversation_id:
+        import re as _re
+        safe = _re.sub(r"[^A-Za-z0-9_-]", "_", conversation_id)[:80]
+        d = os.path.join(_WS_BASE, f"conv-{safe}")
+        os.makedirs(d, exist_ok=True)
+        return d
+    return tempfile.mkdtemp(prefix="turn-", dir=_WS_BASE)
+
+
 DEFAULT_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "WebSearch"]
 
 
@@ -195,7 +218,7 @@ def run_claude(messages: List[ChatMessage], model: str = "sonnet", conversation_
             capture_output=True,
             text=True,
             timeout=effective_timeout,
-            cwd="/tmp",  # Run from /tmp to avoid directory context
+            cwd=_workspace(conversation_id),  # clean room — no inherited memory/CLAUDE.md
         )
 
         # Clean up temp image files
@@ -317,7 +340,7 @@ def run_claude_stream(messages: List[ChatMessage], model: str = "sonnet", conver
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            cwd="/tmp",
+            cwd=_workspace(conversation_id),  # clean room — no inherited memory/CLAUDE.md
         )
 
         # Send prompt via stdin
